@@ -1,0 +1,86 @@
+[
+  {
+    "device_id": "D01",
+    "name": "空壓機",
+    "location": "B1 動力室",
+    "model": "AC-75",
+    "critical": true
+  },
+  {
+    "device_id": "D02",
+    "name": "冰水主機",
+    "location": "頂樓",
+    "model": "CH-200",
+    "critical": true
+  },
+  {
+    "device_id": "D03",
+    "name": "UPS",
+    "location": "三樓機房",
+    "model": "UP-10K",
+    "critical": true
+  },
+  {
+    "device_id": "D04",
+    "name": "配電盤",
+    "location": "一樓大廳",
+    "model": "PD-380",
+    "critical": true
+  },
+  {
+    "device_id": "D05",
+    "name": "除濕機",
+    "location": "倉庫後門",
+    "model": "DH-50",
+    "critical": false
+  },
+  {
+    "device_id": "D06",
+    "name": "循環泵浦",
+    "location": "B1 動力室",
+    "model": "PM-15",
+    "critical": true
+  },
+  {
+    "device_id": "D07",
+    "name": "貨梯",
+    "location": "出貨碼頭",
+    "model": "EL-2T",
+    "critical": true
+  },
+  {
+    "device_id": "D08",
+    "name": "發電機",
+    "location": "頂樓",
+    "model": "GN-500",
+    "critical": true
+  },
+  {
+    "device_id": "D09",
+    "name": "輸送帶馬達",
+    "location": "產線 A 區",
+    "model": "MT-3K",
+    "critical": true
+  },
+  {
+    "device_id": "D10",
+    "name": "監控主機",
+    "location": "警衛室",
+    "model": "NV-16",
+    "critical": false
+  },
+  {
+    "device_id": "D11",
+    "name": "飲水機",
+    "location": "員工餐廳",
+    "model": "WD-RO",
+    "critical": false
+  },
+  {
+    "device_id": "D12",
+    "name": "冷凍櫃",
+    "location": "品檢室",
+    "model": "FR-600",
+    "critical": false
+  }
+]
