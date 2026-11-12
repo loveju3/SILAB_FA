@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SILAB · 算法開發工作台</title><link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="SILAB 首頁"><span class="brand-icon">S<span> /</span></span><span>SILAB<span class="brand-sub">DEVELOPMENT LAB</span></span></a>
+    <div class="nav-label">開發工作台</div>
+    <nav aria-label="主要導覽"><button class="nav active" data-page="evaluate"><span>◫</span> 評分分析 <small>01</small></button><button class="nav" data-page="lookup"><span>⌕</span> 工單查詢 <small>02</small></button></nav>
+    <div class="sidebar-bottom"><span class="status-dot"></span> 本機離線工具<p>從分數找到問題，<br>從原文理解問題。</p><span class="version">HELPER TOOLS / v1.0</span></div>
+  </aside>
+  <main>
+    <header class="topbar"><span>維修工單分流 <span class="muted">/</span> <span id="breadcrumb">評分分析</span></span><span class="local-badge"><i></i> LOCAL WORKSPACE</span></header>
+    <section id="page-evaluate" class="page">
+      <div class="page-heading"><div><div class="eyebrow">EVALUATION & INSIGHTS</div><h1>每一次調整，都有依據<span>。</span></h1><p>載入預測結果，快速看懂分數、誤判與改善方向。</p></div><button id="baseline" class="button secondary">↗ 載入 Baseline 範例</button></div>
+      <section class="panel setup" aria-label="評分設定">
+        <div class="section-title"><span class="step">01</span><h2>開始一輪評估</h2><span class="tag">官方計分規則</span></div>
+        <div class="setup-grid">
+          <label class="file-zone" id="drop-zone"><input id="prediction-file" type="file" accept=".jsonl,.json,application/json"><span class="upload-icon">↑</span><span><strong id="file-label">選擇或拖入預測檔</strong><small id="file-hint">JSONL 格式 · 點擊選取檔案</small></span><span class="file-type">.jsonl</span></label>
+          <div class="gold-control"><label for="gold-source">標準答案</label><select id="gold-source"><option value="dev">dev.jsonl · 300 筆驗證資料</option><option value="history">history.jsonl · 300 筆歷史資料</option><option value="custom">自行上傳答案檔…</option></select><input hidden id="gold-file" type="file" accept=".jsonl,.json"><label id="gold-file-label" class="custom-file" for="gold-file" hidden>選擇標準答案檔</label></div>
+          <button id="evaluate" class="button primary">開始評分 <span>→</span></button>
+        </div>
+        <div class="formula">總分 <b>=</b> <span>0.4 × category</span> <b>+</b> 0.2 × device <b>+</b> 0.2 × urgency <b>+</b> 0.2 × duplicate</div>
+      </section>
+      <div id="evaluation-status" class="message" role="status" aria-live="polite" hidden></div>
+      <div id="empty-evaluation" class="empty panel"><div class="empty-graphic">▥</div><h2>把下一次改善，變成看得見的結果</h2><p>選擇預測檔開始評分，或先載入 Baseline 範例。<br>你會在這裡看到各項指標、誤判分布與可逐筆檢查的錯題。</p><span>不需輸入指令 · 原始資料不會被修改</span></div>
+      <div id="results" hidden>
+        <div class="result-heading"><div><span class="eyebrow">EVALUATION RESULT</span><h2 id="run-label"></h2></div><div class="download-group"><a id="download-csv" class="button secondary" download>↓ 錯題 CSV</a><a id="download-json" class="button secondary" download>↓ 指標 JSON</a><a id="download-errors" class="text-link" download>錯題 JSONL</a></div></div>
+        <div id="metrics" class="metric-grid"></div>
+        <div id="validation" class="validation" hidden></div>
+        <div class="chart-grid">
+          <section class="panel chart-panel"><div class="section-title"><h2>錯誤集中在哪裡？</h2><span class="muted">點擊長條篩選錯題</span></div><div id="error-bars"></div><p class="chart-note">同一張工單可能有多欄錯誤；欄位錯誤數不等於 F1 扣分。</p></section>
+          <section class="panel chart-panel"><div class="section-title"><h2>分類混淆矩陣</h2><span class="muted">列：正解 / 欄：預測</span></div><div id="matrix" class="matrix-scroll"></div><p class="chart-note">標準答案 category=null 不納入；未輸出包含 null、缺失與無效預測。</p></section>
+        </div>
+        <section class="panel errors-panel"><div class="section-title"><span class="step">02</span><h2>逐筆釐清錯誤</h2><span id="error-count" class="tag"></span></div><div class="filters"><div class="search-control"><span>⌕</span><input id="error-search" placeholder="搜尋工單 ID、原文或回報人" aria-label="搜尋錯題"></div><select id="field-filter" aria-label="依錯誤欄位篩選"><option value="">所有錯誤欄位</option value="category">category · 分類</option value="device_id">device_id · 設備</option><option value="urgency">urgency · 急迫性</option><option value="duplicate_of">duplicate_of · 重複工單</option></select></div><div class="table-scroll"><table class="error-table"><thead><tr><th>工單編號</th><th>回報內容</th><th>錯誤欄位</th><th></th></tr></thead><tbody id="error-rows"></tbody></table></div><div class="pagination"><span id="page-info"></span><div><button id="prev" class="button secondary small">← 上一頁</button><button id="next" class="button secondary small">下一頁 →</button></div></div></section>
+      </div>
+    </section>
+    <section id="page-lookup" class="page" hidden>
+      <div class="page-heading"><div><div class="eyebrow">TICKET EXPLORER</div><h1>回到原文，找到線索<span>。</span></h1><p>依工單編號查詢完整內容，也可以一次比較多張工單。</p></div></div>
+      <section class="panel lookup-panel"><form id="lookup-form"><label for="ticket-query">工單編號 <span class="muted">多筆可用空白或逗號分隔</span></label><div class="lookup-input-row"><input id="ticket-query" placeholder="例如 T02306" autocomplete="off" required><button class="button primary" id="lookup-button">查詢工單 <span>→</span></button></div></form><div class="quick-queries">快速試試 <button data-ticket="T02306">T02306</button><button data-ticket="T02306 T02304">比較重複前後單 ↗</button></div><div id="source-counts" class="source-counts"></div></section>
+      <div id="lookup-status" class="message" role="status" aria-live="polite" hidden></div>
+      <div id="lookup-results" class="ticket-grid"><div class="empty panel"><div class="empty-graphic">⌕</div><h2>工單的細節，都在這裡</h2><p>查詢 tickets、dev、history 三份資料。<br>保留原文、標籤及來源行號，方便追查判斷依據。</p></div></div>
+    </section>
+    <footer>SILAB <span>/</span> 算法開發工作台 <span>·</span> 所有計算與查詢皆在本機執行</footer>
+  </main>
+  <dialog id="detail-dialog"><div class="detail-head"><div><span class="eyebrow">ERROR INSPECTION</span><h2 id="detail-title"></h2></div><button id="close-detail" class="close-button" aria-label="關閉詳情">×</button></div><div id="detail-content"></div></dialog>
+  <script src="/app.js" defer></script>
+</body>
+</html>
