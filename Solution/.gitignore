@@ -4,3 +4,4 @@ reports/
 predictions/
 experiments/*.json
 experiments/runs/
+models/

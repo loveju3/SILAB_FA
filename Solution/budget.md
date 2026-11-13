@@ -1,5 +1,7 @@
 # 方案 A：2 GB 演練
 
+**分數定位：** 本文沿用的 A 曾在開發前期參考 dev，dev 分數僅為歷史開發驗證紀錄，不是獨立測試成績。2 GB 上限與效能實測仍保留其原有量測意義；新算法的資料使用遵循 [AGENTS.md](../AGENTS.md)。
+
 2026-11-13 已完成 Linux ARM64 Docker 容器實測。算法沒有縮減，也沒有放棄欄位；A 只有標準函式庫與小型規則資產，直接保留完整能力。
 
 ## 限制與證據
@@ -58,3 +60,26 @@ dev 及 tickets 的受限／原生預測檔逐位元相同。沒有刻意降低�
 每次新容器、無顯式預熱，OS 快取未清除。容器內 wrapper 用 perf_counter 包住預測子程序，包含 Python 啟動、載入、讀寫與量測輸出；不含 Docker 啟動。逐筆範圍與 nearest-rank 方法同 bench.md。峰值來自同容器 cgroup 的 memory.peak，包含監測 wrapper、子程序與計入該 cgroup 的快取。符合 480 秒預算；原生與容器 CPU 配額不同，不用兩組時間判斷限制對速度的影響。
 
 原始證據：`experiments/runs/budget-9d1979fec3ba/`，包含 docker_runs.json、每次 limits/metrics JSON 與預測。不掛載原始碼的 smoke test 產物位於 `reports/standard_image_smoke/`。整理輸出為 `predictions/tickets_predictions_2gb.jsonl`。本次完成 A 的資源驗證；之後 B/C 是否保留完整模型，仍須各自重測。
+
+## 方案 B：LR 與 LinearSVC 的 2 GB 追加驗證
+
+2026-11-13 已建置 `Solution/Dockerfile.ml` 為 `silab-fa:scheme-b`，固定 requirements-ml.txt 依賴並使用本機 history 訓練資產。使用同樣 2 GiB、無 swap、2 CPU、無網路的容器限制；`--pull=never` 禁止推論時拉取映像。
+
+LR 測試先執行獨立 OOM probe，結果為退出 137、OOMKilled=true；兩種方法的每次正式執行皆驗證 memory.max=2147483648、memory.swap.max=0、退出 0 且未 OOM。
+
+| 方法 | 三次完整 tickets 總時間 s | P50 ms 範圍 | P95 ms 範圍 | 最大 ms | 容器 memory.peak MiB |
+|---|---|---|---|---:|---|
+| B-LR | 10.471～10.501 | 5.081～5.153 | 7.310～7.473 | 15.435 | 86.81～87.38 |
+| B-SVC | 10.356～10.733 | 5.016～5.186 | 7.323～7.759 | 18.397 | 86.61～86.84 |
+
+時間範圍包含 Python 子程序冷啟動、模型與依賴載入、推論及輸出，不含 Docker 啟動；逐筆範圍同 bench.md。每次新容器，無顯式預熱，OS 快取未清除。兩方法均保留完整模型與四欄能力；各自三次預測與原生 macOS 的三次預測逐位元相同。不同作業系統的 RSS 與 cgroup 峰值口徑不同，不直接比較數字高低。
+
+本次 runner 預設以 history 檢查可執行性，再跑完整 tickets；完整 history 已用於重訓，故不把這次 history 推論當成泛化評分。dev 未提供且未執行，**尚無 B 的 dev 分數與 2 GB 掉分數據**，不能用 tickets 的一致性代替 dev 掉分量測。
+
+```bash
+docker build -f Solution/Dockerfile.ml -t silab-fa:scheme-b .
+.venv/bin/python Solution/scripts/run_budget.py --method tfidf-lr --probe
+.venv/bin/python Solution/scripts/run_budget.py --method tfidf-svc
+```
+
+原始紀錄：`experiments/runs/budget-tfidf-lr-287e1140ed0c/`、`experiments/runs/budget-tfidf-svc-80aec98fef41/`。目前 runner 預設 history；若要在版本固定後重現 A 舊紀錄的 dev 步驟，需明確指定 `--validation-dataset dev`，不在開發過程預設讀取 dev。

@@ -1,6 +1,10 @@
 # Solution：維修工單分流
 
-目前完成第 1～4 步的 **方案 A：完整規則版**，僅需 Python 3.10+ 標準函式庫。已實測 Python 3.13；無模型權重、套件安裝或推論連網。B/C 分類模型與第二部分 Agent 尚未實作。
+目前完成 **方案 A：完整規則版**，以及 **方案 B：字元 TF-IDF＋Logistic Regression／LinearSVC**。A 僅需 Python 3.10+ 標準函式庫；B 使用固定版本 ML 依賴與本機 history 訓練資產，兩者推論都不需連網。BGE（C）與第二部分 Agent 尚未實作。
+
+方案 B 可先閱讀 [字元 TF-IDF 分類方法說明與流程圖](docs/字元TF-IDF分類方法說明.md)，再看 [實作、四種對照與操作](docs/TF-IDF實作與比較.md)。全部文件見 [docs 索引](docs/README.md)。
+
+**開發算法不得觀察 dev 資料；dev 只用於固定版本驗證。** 開發、錯誤分析與調參使用 history 及其內部分割，遵循 [專案規範](../AGENTS.md)。現有 A 曾參考 dev，不能當作符合新規範的獨立開發結果。
 
 想先了解判斷方式，可閱讀 [演算法流程與流程圖](docs/演算法流程.md)，用白話說明設備、分類、上下文、急迫性與重複報修的判斷順序。
 
@@ -19,6 +23,10 @@ Solution/
 │   ├── pipeline.py           時序處理、單檔狀態與 duplicate 索引
 │   └── metrics.py            延遲分位數與程序 RSS
 ├── config/                   設備別名及分類規則資料
+├── training/                 history 時間／近似模板切分與模型訓練
+├── train.py                  LR／SVC × 名稱保留／遮罩四種實驗與重訓
+├── models/                   本機模型與 metadata，不加入 Git
+├── requirements-ml.txt       B 的固定依賴；A 不需要安裝
 ├── docs/                     白話演算法說明與 Mermaid 流程圖
 ├── tests/                    行為與契約測試
 ├── scripts/                  本機量測、容器限制查驗與 2 GB 演練
@@ -26,6 +34,7 @@ Solution/
 ├── reports/                  本機產生的評分、錯題及量測，不加入 Git
 ├── experiments/              實驗摘要；runs/ 原始結果留在本機
 ├── Dockerfile                標準 Python 容器建置定義
+├── Dockerfile.ml             B 的 ML 依賴與本機模型映像
 ├── bench.md                  本機 CPU 實測與方法
 ├── budget.md                 2 GB 限制證據及實測
 └── choices.md                已實測及預定方案
@@ -51,6 +60,8 @@ python3 Solution/scripts/benchmark.py --runs 3
 
 現有 UI 的「評分分析」可上傳 `Solution/predictions/dev_A.jsonl`，標準答案選 dev。完整錯題與 baseline 對照另存 `reports/dev_A/` 和 `reports/comparison.json`。
 
+也可直接在 UI 選擇測試資料、方案 A／Baseline、本機／2 GB 環境及輸出資料夾，一鍵產生含台北時間、資料集、方法、限制與分數的預測檔；下方切換全部判斷與錯題。操作與命名格式見 [輔助工具說明](../helper_tool/README.md)。
+
 ## 推論規則與資料邊界
 
 1. JSONL 入口只投影 `ticket_id / created_at / reporter / raw_text` 為 Ticket，核心函式沒有標準答案欄位。測試確認加入錯誤標籤不改變預測。
@@ -63,7 +74,7 @@ python3 Solution/scripts/benchmark.py --runs 3
 8. urgency 嚴格依 schema 的六條規則順序；critical 使用自判設備。duplicate 使用 `(reporter, 預測設備, 預測類別)` 的最近前單，null 不建索引。
 9. 建議引用當筆原文片段與類別處置模板，最多 40 字；high 先確認安全與通知維修。全部 `llm_used=false`。
 
-規則詞彙參考 schema、設備表、錯誤碼及 history 的代表案例；此版本 dev 首輪評估後未以錯題新增分類詞。dev 已用於規劃與驗證，分數不代表無偏泛化能力。分類不是語意理解，主症狀、否定、未知措辭與錯誤碼衝突仍可能判錯。
+規則詞彙參考 schema、設備表、錯誤碼及 history 的代表案例；開發前期也曾觀察 dev。此版本 dev 首輪評估後未以錯題新增分類詞，但這無法消除前期影響，分數不代表無偏泛化能力，也不能追溯視為符合新規範。分類不是語意理解，主症狀、否定、未知措辭與錯誤碼衝突仍可能判錯。
 
 ## 目前結果與下一步
 
@@ -71,6 +82,8 @@ python3 Solution/scripts/benchmark.py --runs 3
 
 分類相對 baseline 修正 101 筆、引入 26 筆錯誤。資訊不足策略也會漏掉有真實類別的口語故障；這是接方案 B 要處理的主要問題，不再靠持續堆 dev 關鍵詞消除。
 
-下一步以 history 訓練 TF-IDF＋Logistic Regression，固定設備、urgency、上下文及 duplicate 模組，比較名稱遮罩與 LinearSVC；再視結果測 BGE。分類器目前保持簡單的 `classify(text) -> CategoryMatch` 契約，尚不建立尚未需要的模型繼承架構。
+已完成 history 內部分割的 TF-IDF／LR／SVC 四種比較並固定各方法的遮罩版；B 沒有讀取 dev 內容或用 dev 選型。本機目前未提供 dev，尚未執行其驗證。沿用 A 的正規化、設備及上下文仍保留來源限制，不能宣稱整條流程全新未觀察 dev。下一個模型候選為 BGE，仍須依 history 內部比較決定投入，不以 dev 錯題或分數調整算法。
+
+目前開發測試建議執行 `.venv/bin/python Solution/scripts/test_development.py`：45 項中 43 通過、2 項 dev 驗證測試預設略過，並攔截測試程序直接開啟 dev。這不是對所有外部程序的檔案存取沙箱，仍須遵守資料使用規範。
 
 標準 Python 映像已於重試後建置成功，並完成 2 GB 演練與不掛載原始碼的獨立執行，詳見 [budget.md](budget.md)。本機測試為 Apple M4 Max、36 GiB RAM，沒有宣稱已在實體 8 GB／2 GB 筆電或 x86 上驗證。

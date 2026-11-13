@@ -14,27 +14,41 @@
   <main>
     <header class="topbar"><span>維修工單分流 <span class="muted">/</span> <span id="breadcrumb">評分分析</span></span><span class="local-badge"><i></i> LOCAL WORKSPACE</span></header>
     <section id="page-evaluate" class="page">
-      <div class="page-heading"><div><div class="eyebrow">EVALUATION & INSIGHTS</div><h1>每一次調整，都有依據<span>。</span></h1><p>載入預測結果，快速看懂分數、誤判與改善方向。</p></div><button id="baseline" class="button secondary">↗ 載入 Baseline 範例</button></div>
+      <div class="page-heading"><div><div class="eyebrow">EVALUATION & INSIGHTS</div><h1>每一次調整，都有依據<span>。</span></h1><p>選擇資料與方法，自動產生預測、計算分數並整理錯題。</p></div><button id="baseline" class="button secondary">↗ 載入 Baseline 範例</button></div>
+      <section class="panel setup experiment-setup" aria-label="自動預測設定">
+        <div class="section-title"><span class="step">01</span><h2>執行預測與評分</h2><span class="tag">結果僅儲存於本機</span></div>
+        <form id="experiment-form">
+          <div class="experiment-grid">
+            <div class="form-control"><label for="test-dataset">測試資料集</label><select id="test-dataset"><option value="dev">dev.jsonl · 驗證資料</option><option value="history" selected>history.jsonl · 開發資料</option><option value="tickets">tickets.jsonl · 無標準答案</option><option value="custom">自行選擇 JSONL…</option></select><input id="test-file" type="file" accept=".jsonl" hidden><label id="test-file-label" for="test-file" class="custom-file" hidden>選擇測試資料檔</label></div>
+            <div class="form-control"><label for="test-method">方法</label><select id="test-method"><option value="solution-a">方案 A · 完整規則</option><option value="baseline">Baseline · 原始規則</option><option value="tfidf-lr">方案 B · TF-IDF＋Logistic Regression</option><option value="tfidf-svc">方案 B · TF-IDF＋LinearSVC</option></select></div>
+            <div class="form-control"><label for="test-limit">執行環境</label><select id="test-limit"><option value="native">本機 · 未限制記憶體</option><option value="2gb">2 GB · Docker 容器</option></select></div>
+            <div class="form-control output-control"><label for="output-dir">預測檔輸出資料夾</label><input id="output-dir" value="Solution/predictions" placeholder="例如 Solution/predictions 或 /Users/你的帳號/測試結果" required><small>可填絕對路徑，或相對於專案根目錄的路徑；不存在時自動建立。</small></div>
+          </div>
+          <div class="experiment-actions"><p class="naming-hint">檔名：<code>日期時間戳_資料集_方法_限制_得分.jsonl</code><br>使用台北時間，得分為 0～1；沒有標準答案時標記「未評分」。</p><button id="run-experiment" class="button primary" type="submit">執行預測與評分 <span>→</span></button></div>
+          <p id="limit-hint" class="chart-note" hidden>2 GB 模式需要已啟動 Docker，方案 A／Baseline 需 silab-fa:scheme-a 映像；TF-IDF 需先訓練模型並建置 silab-fa:scheme-b 映像；系統會確認記憶體與禁止 swap 的限制。</p>
+        </form>
+      </section>
       <section class="panel setup" aria-label="評分設定">
-        <div class="section-title"><span class="step">01</span><h2>開始一輪評估</h2><span class="tag">官方計分規則</span></div>
+        <div class="section-title"><h2>已有預測檔？直接評分</h2><span class="tag">官方計分規則</span></div>
         <div class="setup-grid">
           <label class="file-zone" id="drop-zone"><input id="prediction-file" type="file" accept=".jsonl,.json,application/json"><span class="upload-icon">↑</span><span><strong id="file-label">選擇或拖入預測檔</strong><small id="file-hint">JSONL 格式 · 點擊選取檔案</small></span><span class="file-type">.jsonl</span></label>
-          <div class="gold-control"><label for="gold-source">標準答案</label><select id="gold-source"><option value="dev">dev.jsonl · 300 筆驗證資料</option><option value="history">history.jsonl · 300 筆歷史資料</option><option value="custom">自行上傳答案檔…</option></select><input hidden id="gold-file" type="file" accept=".jsonl,.json"><label id="gold-file-label" class="custom-file" for="gold-file" hidden>選擇標準答案檔</label></div>
+          <div class="gold-control"><label for="gold-source">標準答案</label><select id="gold-source"><option value="dev">dev.jsonl · 300 筆驗證資料</option><option value="history" selected>history.jsonl · 開發資料</option><option value="custom">自行上傳答案檔…</option></select><input hidden id="gold-file" type="file" accept=".jsonl,.json"><label id="gold-file-label" class="custom-file" for="gold-file" hidden>選擇標準答案檔</label></div>
           <button id="evaluate" class="button primary">開始評分 <span>→</span></button>
         </div>
         <div class="formula">總分 <b>=</b> <span>0.4 × category</span> <b>+</b> 0.2 × device <b>+</b> 0.2 × urgency <b>+</b> 0.2 × duplicate</div>
       </section>
       <div id="evaluation-status" class="message" role="status" aria-live="polite" hidden></div>
-      <div id="empty-evaluation" class="empty panel"><div class="empty-graphic">▥</div><h2>把下一次改善，變成看得見的結果</h2><p>選擇預測檔開始評分，或先載入 Baseline 範例。<br>你會在這裡看到各項指標、誤判分布與可逐筆檢查的錯題。</p><span>不需輸入指令 · 原始資料不會被修改</span></div>
+      <div id="empty-evaluation" class="empty panel"><div class="empty-graphic">▥</div><h2>把下一次改善，變成看得見的結果</h2><p>選擇資料集執行預測，或上傳已有的預測檔。<br>這裡會顯示分數、全部判斷，以及可以逐筆檢查的錯題。</p><span>不需輸入指令 · 原始資料不會被修改</span></div>
       <div id="results" hidden>
-        <div class="result-heading"><div><span class="eyebrow">EVALUATION RESULT</span><h2 id="run-label"></h2></div><div class="download-group"><a id="download-csv" class="button secondary" download>↓ 錯題 CSV</a><a id="download-json" class="button secondary" download>↓ 指標 JSON</a><a id="download-errors" class="text-link" download>錯題 JSONL</a></div></div>
+        <div class="result-heading"><div><span class="eyebrow">EVALUATION RESULT</span><h2 id="run-label"></h2></div><div class="download-group"><a id="download-predictions" class="button secondary" download hidden>↓ 預測 JSONL</a><a id="download-csv" class="button secondary" download>↓ 錯題 CSV</a><a id="download-json" class="button secondary" download>↓ 指標 JSON</a><a id="download-errors" class="text-link" download>錯題 JSONL</a></div></div>
+        <p id="output-details" class="provenance" hidden></p>
         <div id="metrics" class="metric-grid"></div>
         <div id="validation" class="validation" hidden></div>
-        <div class="chart-grid">
+        <div id="score-charts" class="chart-grid">
           <section class="panel chart-panel"><div class="section-title"><h2>錯誤集中在哪裡？</h2><span class="muted">點擊長條篩選錯題</span></div><div id="error-bars"></div><p class="chart-note">同一張工單可能有多欄錯誤；欄位錯誤數不等於 F1 扣分。</p></section>
           <section class="panel chart-panel"><div class="section-title"><h2>分類混淆矩陣</h2><span class="muted">列：正解 / 欄：預測</span></div><div id="matrix" class="matrix-scroll"></div><p class="chart-note">標準答案 category=null 不納入；未輸出包含 null、缺失與無效預測。</p></section>
         </div>
-        <section class="panel errors-panel"><div class="section-title"><span class="step">02</span><h2>逐筆釐清錯誤</h2><span id="error-count" class="tag"></span></div><div class="filters"><div class="search-control"><span>⌕</span><input id="error-search" placeholder="搜尋工單 ID、原文或回報人" aria-label="搜尋錯題"></div><select id="field-filter" aria-label="依錯誤欄位篩選"><option value="">所有錯誤欄位</option value="category">category · 分類</option value="device_id">device_id · 設備</option><option value="urgency">urgency · 急迫性</option><option value="duplicate_of">duplicate_of · 重複工單</option></select></div><div class="table-scroll"><table class="error-table"><thead><tr><th>工單編號</th><th>回報內容</th><th>錯誤欄位</th><th></th></tr></thead><tbody id="error-rows"></tbody></table></div><div class="pagination"><span id="page-info"></span><div><button id="prev" class="button secondary small">← 上一頁</button><button id="next" class="button secondary small">下一頁 →</button></div></div></section>
+        <section class="panel errors-panel"><div class="section-title"><span class="step">02</span><h2>逐筆查看判斷</h2><span id="error-count" class="tag"></span></div><div class="filters"><select id="result-filter" aria-label="結果範圍"><option value="errors">只看錯題</option><option value="all">全部判斷</option></select><div class="search-control"><span>⌕</span><input id="error-search" placeholder="搜尋工單 ID、原文或回報人" aria-label="搜尋判斷結果"></div><select id="field-filter" aria-label="依錯誤欄位篩選"><option value="">所有錯誤欄位</option value="category">category · 分類</option value="device_id">device_id · 設備</option><option value="urgency">urgency · 急迫性</option><option value="duplicate_of">duplicate_of · 重複工單</option></select></div><div class="table-scroll"><table class="error-table"><thead><tr><th>工單編號</th><th>回報內容</th><th>判斷結果</th><th></th></tr></thead><tbody id="error-rows"></tbody></table></div><div class="pagination"><span id="page-info"></span><div><button id="prev" class="button secondary small">← 上一頁</button><button id="next" class="button secondary small">下一頁 →</button></div></div></section>
       </div>
     </section>
     <section id="page-lookup" class="page" hidden>

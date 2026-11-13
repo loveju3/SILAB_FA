@@ -2,6 +2,7 @@
 from contextlib import redirect_stdout
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -35,6 +36,7 @@ class ToolsTest(unittest.TestCase):
         self.assertAlmostEqual(summary["total"], weighted, places=14)
         return summary, errors, output
 
+    @unittest.skipUnless(os.environ.get("SILAB_VALIDATE_DEV") == "1", "dev 僅供固定版本驗證，需明確啟用")
     def test_real_baseline_matches_official_and_exports(self):
         prediction = self.directory / "baseline.jsonl"
         subprocess.run([sys.executable, str(ROOT / "baseline/predict.py"), str(ROOT / "data/dev.jsonl"),
@@ -122,10 +124,11 @@ class ToolsTest(unittest.TestCase):
         self.assertEqual(json.loads(out.getvalue())["unknown"], [])
 
     def test_cli_from_other_directory(self):
-        result = subprocess.run([sys.executable, str(ROOT / "helper_tool/lookup.py"), "T02306", "--json"],
+        source = self.save("tickets.jsonl", [self.gold("T1")])
+        result = subprocess.run([sys.executable, str(ROOT / "helper_tool/lookup.py"), "T1", "--files", str(source), "--json"],
                                 cwd=self.directory, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout)["T02306"][0]["record"]["duplicate_of"], "T02304")
+        self.assertEqual(json.loads(result.stdout)["T1"][0]["record"], self.gold("T1"))
 
 
 if __name__ == "__main__":

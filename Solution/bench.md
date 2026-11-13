@@ -1,5 +1,7 @@
 # 方案 A：CPU 量測紀錄
 
+**歷史結果限制：** A 在新增「dev 僅供驗證」規範之前曾觀察 dev；下列分數是既有開發驗證紀錄，不是未觀察 dev 的獨立測試成績。後續算法遵循 [AGENTS.md](../AGENTS.md)，不以本報告的 dev 錯題或分數調整設計。
+
 實測日期：2026-11-13。主機 Apple M4 Max、14 核、36 GiB RAM，macOS ARM64、Python 3.13。純 Python、無 GPU/MPS、無模型載入及預熱。**本節為原生 macOS 未施加記憶體上限測試，未在實體 8 GB 機器驗證。** 受限 Linux ARM64 結果另見 budget.md，不跨環境推論速度差異。
 
 ## 正確性
@@ -40,3 +42,23 @@ P95 約為 P50 的 1.3～1.5 倍。可能原因包含文本長度、缺字模式
 已確認輸入輸出數量與 ID 相符、同設定三次輸出一致、原生與 2 GB 輸出一致；單筆延遲總和不大於管線總時間。測試另涵蓋標籤污染、跨檔狀態重設、時間平手、打亂輸入、無效資料與 CLI 失敗不覆寫輸出。
 
 尚未對 B/C、實體 8 GB 或 x86 環境量測。這是方案 A 的基準，不是完整作業最終 bench。
+
+## 方案 B 追加量測（2026-11-13）
+
+B 已完成 LR／LinearSVC 及保留／遮罩四種 history 內部比較；詳細分割與分數見 [TF-IDF 實作與比較](docs/TF-IDF實作與比較.md)。本節正式效能量測使用選定的遮罩版本、以完整 history 重訓的固定資產。**B 未觀察 dev 內容，也未執行 dev 驗證；沿用 A 模組的來源限制仍存在。** 上述 A 章節的「尚未量測 B」為當時狀態。
+
+使用專案 .venv、requirements-ml.txt 固定依賴、OPENBLAS_NUM_THREADS=2、OMP_NUM_THREADS=2、原生 macOS ARM64；未施加 8 GB 上限。每方法三個新 Python 程序、每次 2,000 筆，無顯式預熱、不清 OS 快取。程序總時間包含 sklearn 與模型冷載入、讀取、推論、驗證及寫檔。
+
+| 實測方法 | history 內部 category F1 | dev 分數 | tickets 程序總時間 s | 逐筆 P50 ms | P95 ms | 最大 ms | 程序峰值 RSS MiB |
+|---|---:|---|---|---|---|---:|---|
+| B-LR 遮罩 | 0.746499 | 未驗證 | 10.183～10.498 | 4.983～5.201 | 7.123～7.176 | 32.577 | 118.09～123.73 |
+| B-SVC 遮罩 | 0.752058 | 未驗證 | 10.252～10.488 | 4.966～5.077 | 7.106～7.151 | 46.491 | 121.11～121.77 |
+
+history 分數來自 200 筆 fit／90 筆驗證、10 筆近似模板排除的模型；效能則量完整 history 重訓後的資產，兩者不可混稱同一份權重。單筆定義與 nearest-rank 方法同 A，各筆包含一次 TF-IDF transform、資訊判斷及適用的分類頭；載入等共用成本仍計入程序總時間。P95 與最大值可能受文字長度、逐筆稀疏特徵轉換及排程影響，未以 profiler 確認各因素比例。
+
+```bash
+OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 .venv/bin/python Solution/scripts/benchmark.py --method tfidf-lr --runs 3
+OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 .venv/bin/python Solution/scripts/benchmark.py --method tfidf-svc --runs 3
+```
+
+原始紀錄分別為 `experiments/runs/20261113T032128Z-f32a357b/`、`experiments/runs/20261113T032237Z-1c68ecde/`。模型、訓練來源與版本在 metrics 的 model metadata；每次保存輸入、程式與資產雜湊、逐筆耗時及完整預測。已確認同方法三次結果一致，並與 2 GB 容器三次結果逐位元一致，總時間均小於 480 秒。BGE、實體 8 GB／x86 尚未量測。

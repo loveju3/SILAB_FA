@@ -18,7 +18,7 @@ $('prediction-file').addEventListener('change',e=>setFile(e.target.files[0]));
 $('gold-source').addEventListener('change',()=>{$('gold-file-label').hidden=$('gold-source').value!=='custom';});
 $('gold-file').addEventListener('change',()=>{$('gold-file-label').textContent=$('gold-file').files[0]?.name||'選擇標準答案檔';});
 async function evaluate(baseline=false){
-  const controls=[$('evaluate'),$('baseline'),$('prediction-file'),$('gold-source'),$('gold-file')];
+  const controls=document.querySelectorAll('.setup input,.setup select,.setup button,#baseline');
   controls.forEach(el=>el.disabled=true);
   message('evaluation-status',baseline?'正在執行 Baseline 並評分…':'正在計算分數與整理錯誤…');
   try{
@@ -35,16 +35,57 @@ async function evaluate(baseline=false){
       payload.prediction_content=await file.text();payload.prediction_name=file.name;
     }
     const result=await api('/api/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    state.data=result;state.page=0;$('error-search').value='';$('field-filter').value='';renderResults();
+    acceptResult(result);
     message('evaluation-status',`評分完成 · ${result.summary.gold_count} 筆工單 · 報告已儲存在 helper_tool/reports/ui/${result.run_id}`);
   }catch(error){message('evaluation-status',error.message,true);}
   finally{controls.forEach(el=>el.disabled=false);}
 }
 $('evaluate').addEventListener('click',()=>evaluate());$('baseline').addEventListener('click',()=>evaluate(true));
+function acceptResult(result){
+  state.data=result;state.page=0;$('error-search').value='';$('field-filter').value='';
+  $('result-filter').value=result.summary?'errors':'all';
+  $('result-filter').querySelector('[value="all"]').disabled=!result.records;
+  $('result-filter').querySelector('[value="errors"]').disabled=!result.summary;
+  $('field-filter').disabled=!result.summary;
+  renderResults();
+}
+$('test-dataset').addEventListener('change',()=>{$('test-file-label').hidden=$('test-dataset').value!=='custom';});
+$('test-file').addEventListener('change',()=>{$('test-file-label').textContent=$('test-file').files[0]?.name||'選擇測試資料檔';});
+$('test-limit').addEventListener('change',()=>{$('limit-hint').hidden=$('test-limit').value!=='2gb';});
+$('experiment-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const controls=document.querySelectorAll('.setup input,.setup select,.setup button,#baseline');
+  controls.forEach(el=>el.disabled=true);
+  message('evaluation-status','正在執行預測、評分與整理結果，請稍候…');
+  try{
+    const payload={dataset:$('test-dataset').value,method:$('test-method').value,limit:$('test-limit').value,output_dir:$('output-dir').value};
+    if(payload.dataset==='custom'){
+      const file=$('test-file').files[0];if(!file)throw new Error('請選擇測試資料檔。');
+      if(file.size>8*1024*1024)throw new Error('測試資料檔請小於 8 MB。');
+      payload.dataset_content=await file.text();payload.dataset_name=file.name;
+    }
+    const result=await api('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    acceptResult(result);
+    const report=result.summary?`總分 ${result.summary.total.toFixed(6)} · ${result.errors.length} 筆有錯`:'沒有標準答案，已產生預測但未評分';
+    message('evaluation-status',`完成 ${result.execution.count} 筆 · ${report}\n預測檔：${result.execution.output_path}`);
+    $('results').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(error){message('evaluation-status',error.message,true);}
+  finally{controls.forEach(el=>el.disabled=false);}
+});
 function renderResults(){
   const {summary:s,label,downloads}=state.data;
   $('empty-evaluation').hidden=true;$('results').hidden=false;$('run-label').textContent=label;
-  $('download-csv').href=downloads['errors.csv'];$('download-json').href=downloads['summary.json'];$('download-errors').href=downloads['errors.jsonl'];
+  for(const [id,name] of [['download-csv','errors.csv'],['download-json','summary.json'],['download-errors','errors.jsonl'],['download-predictions','predictions.jsonl']]){
+    $(id).hidden=!downloads[name];if(downloads[name])$(id).href=downloads[name];
+  }
+  const execution=state.data.execution;
+  $('output-details').hidden=!execution;
+  if(execution)$('output-details').textContent=`儲存位置：${execution.output_path} · 執行 ${execution.wall_seconds.toFixed(3)} 秒 · ${execution.limit==='2gb'?'2 GB / 禁止 swap':'本機未限制記憶體'}`;
+  $('score-charts').hidden=!s;
+  if(!s){
+    $('metrics').innerHTML=`<div class="metric-card"><div class="metric-name">預測完成</div><div class="metric-value">${execution.count}<small> 筆</small></div><div class="metric-desc">無標準答案，未計算得分</div></div>`;
+    $('validation').hidden=true;renderErrors();return;
+  }
   const cards=[['總分',s.total,'加權結果 · 0～1 分',true],['category',s.metrics.category,'macro-F1 · 權重 0.4'],['device',s.metrics.device,'accuracy · 權重 0.2'],['urgency',s.metrics.urgency,'macro-F1 · 權重 0.2'],['duplicate',s.metrics.duplicate,'ID F1 · 權重 0.2']];
   $('metrics').innerHTML=cards.map(([name,score,desc,total])=>`<div class="metric-card ${total?'total':''}"><div class="metric-name">${name}<span>${total?'SCORE':''}</span></div><div class="metric-value">${total?(score*100).toFixed(2):score.toFixed(3)}${total?'<small> / 100</small>':''}</div><div class="metric-desc">${desc}${total?` · ${score.toFixed(6)}`:''}</div><div class="metric-track"><span style="width:${Math.max(0,Math.min(100,score*100))}%"></span></div></div>`).join('');
   const warnings=[];
@@ -69,26 +110,27 @@ function renderMatrix(){
 function renderErrors(){
   if(!state.data)return;
   const query=$('error-search').value.trim().toLowerCase(),field=$('field-filter').value;
-  const filtered=state.data.errors.filter(e=>(!field||e.wrong_fields.includes(field))&&(!query||`${e.ticket_id} ${e.raw_text} ${e.reporter}`.toLowerCase().includes(query)));
+  const source=$('result-filter').value==='all'?(state.data.records||state.data.errors):state.data.errors;
+  const filtered=source.filter(e=>(!field||e.wrong_fields.includes(field))&&(!query||`${e.ticket_id} ${e.raw_text} ${e.reporter}`.toLowerCase().includes(query)));
   const pages=Math.max(1,Math.ceil(filtered.length/pageSize));state.page=Math.min(state.page,pages-1);
-  $('error-count').textContent=`${state.data.errors.length} / ${state.data.summary.gold_count} 筆有錯`;
+  $('error-count').textContent=state.data.summary?`${state.data.errors.length} / ${state.data.summary.gold_count} 筆有錯`:`${state.data.execution.count} 筆 · 未評分`;
   const rows=filtered.slice(state.page*pageSize,(state.page+1)*pageSize);
-  $('error-rows').innerHTML=rows.length?rows.map(e=>`<tr><td class="ticket-id">${esc(e.ticket_id)}</td><td><div class="raw-preview">${esc((e.raw_text||'').slice(0,90))}${(e.raw_text||'').length>90?'…':''}</div></td><td><div class="pills">${e.wrong_fields.map(f=>`<span class="pill ${f}">${names[f]}</span>`).join('')}</div></td><td><button class="detail-button" data-detail="${esc(e.ticket_id)}">查看差異 ↗</button></td></tr>`).join(''):'<tr><td colspan="4" class="muted">沒有符合條件的錯題。</td></tr>';
+  $('error-rows').innerHTML=rows.length?rows.map(e=>`<tr><td class="ticket-id">${esc(e.ticket_id)}</td><td><div class="raw-preview">${esc((e.raw_text||'').slice(0,90))}${(e.raw_text||'').length>90?'…':''}</div></td><td><div class="pills">${e.wrong_fields.length?e.wrong_fields.map(f=>`<span class="pill ${f}">${names[f]}</span>`).join(''):`<span class="pill correct">${state.data.summary?'一致':'未評分'}</span>`}</div></td><td><button class="detail-button" data-detail="${esc(e.ticket_id)}">查看差異 ↗</button></td></tr>`).join(''):'<tr><td colspan="4" class="muted">沒有符合條件的判斷結果。</td></tr>';
   $('page-info').textContent=`${filtered.length} 筆符合 · 第 ${state.page+1} / ${pages} 頁`;$('prev').disabled=state.page===0;$('next').disabled=state.page>=pages-1;
   document.querySelectorAll('[data-detail]').forEach(el=>el.addEventListener('click',()=>showDetail(el.dataset.detail)));
 }
-['error-search','field-filter'].forEach(id=>$(id).addEventListener(id==='error-search'?'input':'change',()=>{state.page=0;renderErrors();}));
+['error-search','field-filter','result-filter'].forEach(id=>$(id).addEventListener(id==='error-search'?'input':'change',()=>{state.page=0;renderErrors();}));
 $('prev').addEventListener('click',()=>{state.page--;renderErrors();});$('next').addEventListener('click',()=>{state.page++;renderErrors();});
 function showDetail(id){
-  const e=state.data.errors.find(error=>error.ticket_id===id);if(!e)return;
+  const e=(state.data.records||state.data.errors).find(error=>error.ticket_id===id);if(!e)return;
   $('detail-title').textContent=e.ticket_id;
-  $('detail-content').innerHTML=`<p class="provenance">${esc(e.source_file)} : ${e.source_line}</p><div class="ticket-meta"><span>${esc(e.reporter)}</span><span>${esc(e.created_at)}</span></div><div class="raw-text">${esc(e.raw_text)}</div>${e.validation_errors.length?`<div class="message error">${e.validation_errors.map(esc).join('<br>')}</div>`:''}<table class="compare-table"><thead><tr><th>欄位</th><th>標準答案</th><th>本次預測</th><th>判讀</th></tr></thead><tbody>${fields.map(f=>`<tr class="${e.differences[f]?'wrong':''}"><td>${esc(f)}</td><td>${linkedValue(f,e.gold[f])}</td><td>${e.prediction?linkedValue(f,e.prediction[f]):'缺少整筆預測'}</td><td class="reason">${e.differences[f]?esc(reasons[e.differences[f].reason]||e.differences[f].reason):f==='category'&&e.gold[f]===null?'不納入分類 F1':'一致'}</td></tr>`).join('')}</tbody></table><p class="detail-note">category 的標準答案為 null 時不計入分類 F1；設備棄答需 device 與 category 同時為 null。點擊重複工單編號可查原文。</p>`;
+  $('detail-content').innerHTML=`<p class="provenance">${esc(e.source_file)} : ${e.source_line}</p><div class="ticket-meta"><span>${esc(e.reporter)}</span><span>${esc(e.created_at)}</span></div><div class="raw-text">${esc(e.raw_text)}</div>${e.validation_errors.length?`<div class="message error">${e.validation_errors.map(esc).join('<br>')}</div>`:''}<table class="compare-table"><thead><tr><th>欄位</th><th>標準答案</th><th>本次預測</th><th>判讀</th></tr></thead><tbody>${fields.map(f=>`<tr class="${e.differences[f]?'wrong':''}"><td>${esc(f)}</td><td>${e.gold?linkedValue(f,e.gold[f]):'未提供'}</td><td>${e.prediction?linkedValue(f,e.prediction[f]):'缺少整筆預測'}</td><td class="reason">${e.differences[f]?esc(reasons[e.differences[f].reason]||e.differences[f].reason):!e.gold?'未評分':f==='category'&&e.gold[f]===null?'不納入分類 F1':'一致'}</td></tr>`).join('')}</tbody></table><p class="detail-note">處置建議：${esc(e.prediction?.suggestion||'未提供')}</p><p class="detail-note">category 的標準答案為 null 時不計入分類 F1；設備棄答需 device 與 category 同時為 null。點擊重複工單編號可查原文。</p>`;
   bindTicketLinks($('detail-content'));$('detail-dialog').showModal();
 }
 function linkedValue(field,value){return field==='duplicate_of'&&typeof value==='string'&&value?`<button class="link-button" data-ticket="${esc(value)}">${esc(value)}</button>`:formatValue(value);}
 $('close-detail').addEventListener('click',()=>$('detail-dialog').close());$('detail-dialog').addEventListener('click',e=>{if(e.target===$('detail-dialog')){const rect=e.target.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom)e.target.close();}});
 function deviceName(id){return state.devices.find(d=>d.device_id===id)?.name;}
-function bindTicketLinks(container){container.querySelectorAll('[data-ticket]').forEach(el=>el.addEventListener('click',()=>{if($('detail-dialog').open)$('detail-dialog').close();navigate('lookup');$('ticket-query').value=el.dataset.ticket;lookup();}));}
+function bindTicketLinks(container){container.querySelectorAll('[data-ticket]').forEach(el=>el.addEventListener('click',()=>{if(state.data?.records?.some(r=>r.ticket_id===el.dataset.ticket)){showDetail(el.dataset.ticket);return;}if($('detail-dialog').open)$('detail-dialog').close();navigate('lookup');$('ticket-query').value=el.dataset.ticket;lookup();}));}
 function ticketCard(match){const r=match.record;const source=match.source_file.split('/').pop();return `<article class="panel ticket-card"><div class="ticket-card-head"><h2>${esc(r.ticket_id)}</h2><span class="tag">${esc(source)}</span></div><p class="provenance">${esc(match.source_file)} : ${match.source_line}</p><div class="ticket-meta"><span>回報人 ${esc(r.reporter)}</span><span>${esc(r.created_at)}</span>${r.status?`<span>狀態 ${esc(r.status)}</span>`:''}</div><div class="raw-text">${esc(r.raw_text)}</div>${fields.some(f=>f in r)?`<div class="label-list">${fields.filter(f=>f in r).map(f=>`<div class="label-item"><small>${f}</small>${linkedValue(f,r[f])}${f==='device_id'&&deviceName(r[f])?` · ${esc(deviceName(r[f]))}`:''}</div>`).join('')}</div>`:'<p class="detail-note">此資料來源未提供四欄標準答案。</p>'}<details class="raw-json"><summary>查看完整 JSON</summary><pre>${esc(JSON.stringify(r,null,2))}</pre></details></article>`;}
 async function lookup(){
   const ids=$('ticket-query').value.trim().split(/[\s,，]+/).filter(Boolean).join(' ');if(!ids)return;
@@ -97,4 +139,4 @@ async function lookup(){
   catch(error){message('lookup-status',error.message,true);}finally{$('lookup-button').disabled=false;}
 }
 $('lookup-form').addEventListener('submit',e=>{e.preventDefault();lookup();});bindTicketLinks(document.querySelector('.quick-queries'));
-api('/api/info').then(info=>{state.devices=info.devices;$('source-counts').innerHTML=info.sources.map(s=>`<span>${esc(s.name)} <b>${s.count.toLocaleString()}</b> 筆</span>`).join('');}).catch(error=>message('lookup-status',error.message,true));
+api('/api/info').then(info=>{state.devices=info.devices;for(const s of info.sources){for(const id of ['test-dataset','gold-source']){const option=$(id).querySelector(`option[value="${s.name}"]`);if(option)option.disabled=s.available===false;}}if(info.default_output_dir)$('output-dir').value=info.default_output_dir;$('source-counts').innerHTML=info.sources.map(s=>`<span>${esc(s.name)} <b>${s.available===false?'未提供':s.count===null?'僅供驗證':s.count.toLocaleString()+' 筆'}</b></span>`).join('');}).catch(error=>message('lookup-status',error.message,true));

@@ -11,7 +11,7 @@ import re
 import sys
 import tempfile
 import threading
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 import uuid
 import webbrowser
 
@@ -25,6 +25,8 @@ except ImportError:
     from evaluate import analyze, write_reports
     from lookup import build_index
 from baseline.predict import main as baseline_predict
+# experiments uses package-relative imports, also when this server is a script.
+from helper_tool.experiments import run_experiment
 
 WEB = Path(__file__).resolve().parent / "web"
 RUNS = Path(__file__).resolve().parent / "reports/ui"
@@ -84,7 +86,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'")
         if attachment:
-            self.send_header("Content-Disposition", f'attachment; filename="{attachment}"')
+            self.send_header("Content-Disposition", f"attachment; filename=download; filename*=UTF-8''{quote(attachment)}")
         self.end_headers()
         self.wfile.write(content)
 
@@ -108,21 +110,28 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == "/api/info":
                 sources = []
                 for name in ("tickets", "dev", "history"):
-                    count = sum(1 for _ in read_records(ROOT / "data" / f"{name}.jsonl"))
-                    sources.append({"name": name, "count": count})
-                self.respond({"sources": sources, "devices": json.loads((ROOT / "data/devices.json").read_text(encoding="utf-8"))})
+                    path = ROOT / "data" / f"{name}.jsonl"
+                    # Opening the workspace must not inspect the dev holdout.
+                    count = None if name == "dev" else (sum(1 for _ in read_records(path)) if path.is_file() else 0)
+                    sources.append({"name": name, "count": count, "available": path.is_file()})
+                self.respond({"sources": sources, "default_output_dir": str(ROOT / "Solution/predictions"),
+                              "devices": json.loads((ROOT / "data/devices.json").read_text(encoding="utf-8"))})
             elif url.path == "/api/lookup":
                 ids = parse_qs(url.query).get("id", [""])[0].split()
                 if not ids or len(ids) > 30:
                     raise ValueError("請輸入 1～30 個 ticket_id，以空白分隔")
-                index = build_index([ROOT / "data" / f"{name}.jsonl" for name in ("tickets", "dev", "history")])
+                index = build_index([p for name in ("tickets", "dev", "history")
+                                     if (p := ROOT / "data" / f"{name}.jsonl").is_file()])
                 self.respond({"results": {tid: index.get(tid, []) for tid in ids}})
             elif url.path.startswith("/reports/"):
                 match = re.fullmatch(r"/reports/([0-9]{8}-[0-9]{6}-[a-f0-9]{8})/([a-z.]+)", url.path)
-                if not match or match[2] not in DOWNLOADS:
+                if not match or match[2] not in DOWNLOADS | {"predictions.jsonl"}:
                     self.respond({"error": "找不到報告"}, 404)
                     return
-                self.send_bytes((RUNS / match[1] / match[2]).read_bytes(), "application/octet-stream", attachment=match[2])
+                name = match[2]
+                if name == "predictions.jsonl":
+                    name = json.loads((RUNS / match[1] / "run.json").read_text(encoding="utf-8"))["filename"]
+                self.send_bytes((RUNS / match[1] / match[2]).read_bytes(), "application/octet-stream", attachment=name)
             else:
                 files = {"/": ("index.html", "text/html; charset=utf-8"),
                          "/app.js": ("app.js", "text/javascript; charset=utf-8"),
@@ -140,7 +149,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.local_request():
             return
-        if self.path != "/api/evaluate":
+        if self.path not in ("/api/evaluate", "/api/run"):
             self.respond({"error": "找不到操作"}, 404)
             return
         try:
@@ -152,7 +161,7 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("請傳送 JSON object")
-            self.respond(evaluate_upload(payload))
+            self.respond(run_experiment(payload, RUNS) if self.path == "/api/run" else evaluate_upload(payload))
         except (OSError, ValueError, UnicodeError) as exc:
             self.respond({"error": str(exc)}, 400)
 

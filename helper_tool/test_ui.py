@@ -1,5 +1,6 @@
 """UI backend regression tests, without requiring a listening socket."""
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -17,6 +18,7 @@ class UITest(unittest.TestCase):
         mock.start()
         self.addCleanup(mock.stop)
 
+    @unittest.skipUnless(os.environ.get("SILAB_VALIDATE_DEV") == "1", "dev 僅供固定版本驗證，需明確啟用")
     def test_baseline_generates_ui_data_and_downloads(self):
         result = ui_server.evaluate_upload({"baseline": True})
         self.assertAlmostEqual(result["summary"]["total"], .441574, places=6)
@@ -41,7 +43,7 @@ class UITest(unittest.TestCase):
         self.assertNotEqual(result["run_id"], ui_server.evaluate_upload(payload)["run_id"])
 
     def test_missing_and_bad_uploads_report_errors(self):
-        for payload in ({}, {"gold": "custom"}, {"gold": "unknown"}, {"prediction_content": "not json"}):
+        for payload in ({}, {"gold": "custom"}, {"gold": "unknown"}, {"gold": "history", "prediction_content": "not json"}):
             with self.subTest(payload=payload), self.assertRaises(ValueError):
                 ui_server.evaluate_upload(payload)
         self.assertEqual(list(self.runs.iterdir()), [])

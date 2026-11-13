@@ -11,7 +11,7 @@ import platform
 from pathlib import Path
 import sys
 
-from triage.classification import RuleClassifier
+from triage.factory import METHODS, build_classifier
 from triage.devices import DeviceResolver
 from triage.io import ROOT, atomic_write, load_json, read_tickets
 from triage.metrics import latency_summary, peak_rss_bytes
@@ -21,10 +21,12 @@ SOLUTION = Path(__file__).resolve().parent
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="方案 A：離線規則分流；不讀取輸入標籤")
+    parser = argparse.ArgumentParser(description="離線分流：規則／TF-IDF 線性分類；不讀取輸入標籤")
     parser.add_argument("input", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--metrics", type=Path, help="額外寫入量測與逐筆耗時 JSON")
+    parser.add_argument("--method", choices=METHODS, default="rules")
+    parser.add_argument("--model-path", type=Path, help="本機訓練產生的可信 joblib 模型；預設 Solution/models/<method>.joblib")
     args = parser.parse_args(argv)
     try:
         if args.input.resolve() == args.output.resolve():
@@ -34,20 +36,24 @@ def main(argv=None) -> int:
         paths = [ROOT / "data/devices.json", ROOT / "data/error_codes.json",
                  SOLUTION / "config/device_aliases.json", SOLUTION / "config/category_rules.json"]
         devices, codes, aliases, rules = [load_json(p) for p in paths]
+        classifier, model_info, model_paths = build_classifier(args.method, codes, rules, args.model_path)
+        if args.output.resolve() in {p.resolve() for p in model_paths} or (
+                args.metrics and args.metrics.resolve() in {p.resolve() for p in model_paths}):
+            raise ValueError("輸出不可覆蓋模型或模型資訊")
         tickets = read_tickets(args.input)
         loaded = perf_counter()
         predictions, timings = predict(tickets, DeviceResolver(devices, codes, aliases),
-                                       RuleClassifier(rules, codes))
+                                       classifier)
         inferred = perf_counter()
         atomic_write(args.output, "".join(json.dumps(p.to_dict(), ensure_ascii=False) + "\n"
                                           for p in predictions))
         written = perf_counter()
         if args.metrics:
-            artifacts = [*paths, Path(__file__), *sorted((SOLUTION / "triage").glob("*.py"))]
+            artifacts = [*paths, Path(__file__), *sorted((SOLUTION / "triage").glob("*.py")), *model_paths]
             report = {
-                "scheme": "A-rules-v1", "python": sys.version, "platform": platform.platform(),
+                **model_info, "python": sys.version, "platform": platform.platform(),
                 "input": str(args.input.resolve()), "input_sha256": hashlib.sha256(args.input.read_bytes()).hexdigest(),
-                "artifacts_sha256": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in artifacts},
+                "artifacts_sha256": {str(p.resolve()): hashlib.sha256(p.read_bytes()).hexdigest() for p in artifacts},
                 "load_seconds": loaded - PROCESS_START,
                 "pipeline_seconds": inferred - loaded,
                 "serialization_write_seconds": written - inferred,

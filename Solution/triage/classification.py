@@ -1,5 +1,6 @@
 """Rule classifier: positive symptom evidence distinguishes other from unknown."""
 from dataclasses import dataclass
+from typing import Protocol
 
 from .text import error_codes, matches
 
@@ -10,7 +11,15 @@ class CategoryMatch:
     evidence: str | None
 
 
+class CategoryClassifier(Protocol):
+    mask_device_names: bool
+
+    def classify(self, text: str) -> CategoryMatch: ...
+
+
 class RuleClassifier:
+    mask_device_names = True
+
     def __init__(self, rules: list[dict], codes: dict):
         self.rules = rules
         self.codes = codes
