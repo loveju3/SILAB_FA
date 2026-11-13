@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""Scheme A CLI: python3 Solution/predict.py INPUT.jsonl OUTPUT.jsonl."""
+from time import perf_counter
+
+PROCESS_START = perf_counter()
+
+import argparse
+import hashlib
+import json
+import platform
+from pathlib import Path
+import sys
+
+from triage.classification import RuleClassifier
+from triage.devices import DeviceResolver
+from triage.io import ROOT, atomic_write, load_json, read_tickets
+from triage.metrics import latency_summary, peak_rss_bytes
+from triage.pipeline import predict
+
+SOLUTION = Path(__file__).resolve().parent
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="方案 A：離線規則分流；不讀取輸入標籤")
+    parser.add_argument("input", type=Path)
+    parser.add_argument("output", type=Path)
+    parser.add_argument("--metrics", type=Path, help="額外寫入量測與逐筆耗時 JSON")
+    args = parser.parse_args(argv)
+    try:
+        if args.input.resolve() == args.output.resolve():
+            raise ValueError("輸出不可覆蓋輸入")
+        if args.metrics and args.metrics.resolve() in {args.input.resolve(), args.output.resolve()}:
+            raise ValueError("量測檔不可覆蓋輸入或預測")
+        paths = [ROOT / "data/devices.json", ROOT / "data/error_codes.json",
+                 SOLUTION / "config/device_aliases.json", SOLUTION / "config/category_rules.json"]
+        devices, codes, aliases, rules = [load_json(p) for p in paths]
+        tickets = read_tickets(args.input)
+        loaded = perf_counter()
+        predictions, timings = predict(tickets, DeviceResolver(devices, codes, aliases),
+                                       RuleClassifier(rules, codes))
+        inferred = perf_counter()
+        atomic_write(args.output, "".join(json.dumps(p.to_dict(), ensure_ascii=False) + "\n"
+                                          for p in predictions))
+        written = perf_counter()
+        if args.metrics:
+            artifacts = [*paths, Path(__file__), *sorted((SOLUTION / "triage").glob("*.py"))]
+            report = {
+                "scheme": "A-rules-v1", "python": sys.version, "platform": platform.platform(),
+                "input": str(args.input.resolve()), "input_sha256": hashlib.sha256(args.input.read_bytes()).hexdigest(),
+                "artifacts_sha256": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in artifacts},
+                "load_seconds": loaded - PROCESS_START,
+                "pipeline_seconds": inferred - loaded,
+                "serialization_write_seconds": written - inferred,
+                "elapsed_to_output_seconds": written - PROCESS_START,
+                "timing_scope": "starts at first Python statement; external runner measures full process startup and metrics write",
+                "peak_rss_bytes": peak_rss_bytes(), "latency": latency_summary(timings), "tickets": timings,
+            }
+            atomic_write(args.metrics, json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        print(f"錯誤：{exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

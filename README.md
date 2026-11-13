@@ -1,0 +1,15 @@
+# SILAB FA：工單分流程式
+
+這個分支是獨立、無資料歷史的程式快照，包含方案 A、評分／查詢 UI、測試、流程圖及彙總效能說明。
+
+- [Solution 操作與架構](Solution/README.md)
+- [演算法流程圖](Solution/docs/演算法流程.md)
+- [輔助工具](helper_tool/README.md)
+- [CPU 量測](Solution/bench.md)
+- [2 GB 驗證](Solution/budget.md)
+
+原始工單、預測結果、逐筆錯誤報告、含工單 ID 的摘要，以及含工單摘錄的原始題目／分析文件均未納入此分支。測試程式中的範例用於驗證契約，執行真實資料評測時仍需自行在本機提供資料。
+
+請自行在本機準備 data/devices.json、data/error_codes.json，以及需要的工單 JSONL。data/、JSONL 與報告已設為忽略；不應將任何工單資料加入 Git。
+
+本分支沒有合併舊 main 的提交，也不會清除遠端既有 main 的歷史。
