@@ -76,6 +76,7 @@ def execute(method: str, limit: str, folder: Path) -> dict:
 
 
 def run_experiment(payload: dict, reports: Path) -> dict:
+    started = perf_counter()
     dataset = payload.get("dataset", "history")
     method, limit = payload.get("method", "solution-a"), payload.get("limit", "native")
     if dataset not in ("dev", "history", "tickets", "custom"):
@@ -155,6 +156,9 @@ def run_experiment(payload: dict, reports: Path) -> dict:
             for name in ("metrics.json", "limits.json"):
                 if (folder / name).exists():
                     shutil.copyfile(folder / name, run / name)
+            timing = {"total_seconds": perf_counter() - started,
+                      "prediction_seconds": execution["wall_seconds"]}
+            metadata["timing"] = timing
             (run / "run.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         except OSError:
             if created:
@@ -166,4 +170,4 @@ def run_experiment(payload: dict, reports: Path) -> dict:
         downloads.update({name: f"/reports/{run_id}/{name}" for name in
                           ("summary.json", "errors.jsonl", "errors.csv", "official.txt", "report.md")})
     return {"summary": summary, "errors": errors, "records": records, "label": filename,
-            "run_id": run_id, "downloads": downloads, "execution": metadata}
+            "run_id": run_id, "downloads": downloads, "execution": metadata, "timing": timing}

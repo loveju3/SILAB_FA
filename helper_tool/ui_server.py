@@ -11,6 +11,7 @@ import re
 import sys
 import tempfile
 import threading
+from time import perf_counter
 from urllib.parse import parse_qs, quote, urlsplit
 import uuid
 import webbrowser
@@ -35,6 +36,8 @@ MAX_BODY = 16 * 1024 * 1024
 
 
 def evaluate_upload(payload):
+    started = perf_counter()
+    prediction_seconds = None
     gold_name = payload.get("gold", "dev")
     if gold_name not in ("dev", "history", "custom"):
         raise ValueError("請選擇 dev、history 或自訂標準答案")
@@ -53,7 +56,9 @@ def evaluate_upload(payload):
                 if not isinstance(record.get("raw_text"), str):
                     raise ValueError(f"標準答案第 {line} 行缺少字串 raw_text，無法執行 Baseline")
             with redirect_stdout(io.StringIO()):
+                prediction_started = perf_counter()
                 baseline_predict(str(gold), str(predictions))
+                prediction_seconds = perf_counter() - prediction_started
             label = f"Baseline · {gold_name}"
         else:
             content = payload.get("prediction_content")
@@ -70,7 +75,11 @@ def evaluate_upload(payload):
             error["source_file"] = gold_label
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:8]
         write_reports(RUNS / run_id, summary, errors, official_output)
+    timing = {"total_seconds": perf_counter() - started, "prediction_seconds": prediction_seconds}
+    (RUNS / run_id / "run.json").write_text(
+        json.dumps({"label": label, "timing": timing}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return {"summary": summary, "errors": errors, "label": label, "run_id": run_id,
+            "timing": timing,
             "downloads": {name: f"/reports/{run_id}/{name}" for name in sorted(DOWNLOADS)}}
 
 

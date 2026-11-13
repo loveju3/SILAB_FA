@@ -42,6 +42,11 @@
       <div id="results" hidden>
         <div class="result-heading"><div><span class="eyebrow">EVALUATION RESULT</span><h2 id="run-label"></h2></div><div class="download-group"><a id="download-predictions" class="button secondary" download hidden>↓ 預測 JSONL</a><a id="download-csv" class="button secondary" download>↓ 錯題 CSV</a><a id="download-json" class="button secondary" download>↓ 指標 JSON</a><a id="download-errors" class="text-link" download>錯題 JSONL</a></div></div>
         <p id="output-details" class="provenance" hidden></p>
+        <section id="run-timing" class="panel timing-panel" aria-label="本次實驗耗時" hidden>
+          <div><h2>本次實驗耗時</h2><p>後端處理時間，不含檔案傳輸與頁面繪製</p></div>
+          <div class="timing-value"><span>總耗時</span><strong id="total-time"></strong><small id="total-time-note"></small></div>
+          <div class="timing-value"><span>其中：預測執行</span><strong id="prediction-time"></strong><small id="prediction-time-note"></small></div>
+        </section>
         <div id="metrics" class="metric-grid"></div>
         <div id="validation" class="validation" hidden></div>
         <div id="score-charts" class="chart-grid">

@@ -84,6 +84,6 @@ python3 Solution/scripts/benchmark.py --runs 3
 
 已完成 history 內部分割的 TF-IDF／LR／SVC 四種比較並固定各方法的遮罩版；B 沒有讀取 dev 內容或用 dev 選型。本機目前未提供 dev，尚未執行其驗證。沿用 A 的正規化、設備及上下文仍保留來源限制，不能宣稱整條流程全新未觀察 dev。下一個模型候選為 BGE，仍須依 history 內部比較決定投入，不以 dev 錯題或分數調整算法。
 
-目前開發測試建議執行 `.venv/bin/python Solution/scripts/test_development.py`：45 項中 43 通過、2 項 dev 驗證測試預設略過，並攔截測試程序直接開啟 dev。這不是對所有外部程序的檔案存取沙箱，仍須遵守資料使用規範。
+目前開發測試建議執行 `.venv/bin/python Solution/scripts/test_development.py`：核心與工具測試一併執行，2 項 dev 驗證測試預設略過，並攔截測試程序直接開啟 dev。這不是對所有外部程序的檔案存取沙箱，仍須遵守資料使用規範。
 
 標準 Python 映像已於重試後建置成功，並完成 2 GB 演練與不掛載原始碼的獨立執行，詳見 [budget.md](budget.md)。本機測試為 Apple M4 Max、36 GiB RAM，沒有宣稱已在實體 8 GB／2 GB 筆電或 x86 上驗證。

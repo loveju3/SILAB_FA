@@ -36,7 +36,7 @@ async function evaluate(baseline=false){
     }
     const result=await api('/api/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     acceptResult(result);
-    message('evaluation-status',`評分完成 · ${result.summary.gold_count} 筆工單 · 報告已儲存在 helper_tool/reports/ui/${result.run_id}`);
+    message('evaluation-status',`評分完成 · ${result.summary.gold_count} 筆工單 · 總耗時 ${result.timing.total_seconds.toFixed(3)} 秒 · 報告已儲存在 helper_tool/reports/ui/${result.run_id}`);
   }catch(error){message('evaluation-status',error.message,true);}
   finally{controls.forEach(el=>el.disabled=false);}
 }
@@ -67,7 +67,7 @@ $('experiment-form').addEventListener('submit',async event=>{
     const result=await api('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     acceptResult(result);
     const report=result.summary?`總分 ${result.summary.total.toFixed(6)} · ${result.errors.length} 筆有錯`:'沒有標準答案，已產生預測但未評分';
-    message('evaluation-status',`完成 ${result.execution.count} 筆 · ${report}\n預測檔：${result.execution.output_path}`);
+    message('evaluation-status',`完成 ${result.execution.count} 筆 · 總耗時 ${result.timing.total_seconds.toFixed(3)} 秒 · ${report}\n預測檔：${result.execution.output_path}`);
     $('results').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(error){message('evaluation-status',error.message,true);}
   finally{controls.forEach(el=>el.disabled=false);}
@@ -79,8 +79,16 @@ function renderResults(){
     $(id).hidden=!downloads[name];if(downloads[name])$(id).href=downloads[name];
   }
   const execution=state.data.execution;
+  const timing=state.data.timing;
+  $('run-timing').hidden=!timing;
+  if(timing){
+    $('total-time').textContent=`${timing.total_seconds.toFixed(3)} 秒`;
+    $('total-time-note').textContent=timing.prediction_seconds===null?'讀取預測、評分與儲存報告':s?'準備資料、預測、評分與儲存報告':'準備資料、預測與儲存結果';
+    $('prediction-time').textContent=timing.prediction_seconds===null?'未執行預測':`${timing.prediction_seconds.toFixed(3)} 秒`;
+    $('prediction-time-note').textContent=timing.prediction_seconds===null?'本次只評分上傳的預測檔':execution?.limit==='2gb'?'包含容器啟動、預測與容器清理':execution?'包含啟動、載入與預測輸出':'執行本機 Baseline 函式';
+  }
   $('output-details').hidden=!execution;
-  if(execution)$('output-details').textContent=`儲存位置：${execution.output_path} · 執行 ${execution.wall_seconds.toFixed(3)} 秒 · ${execution.limit==='2gb'?'2 GB / 禁止 swap':'本機未限制記憶體'}`;
+  if(execution)$('output-details').textContent=`儲存位置：${execution.output_path} · ${execution.limit==='2gb'?'2 GB / 禁止 swap':'本機未限制記憶體'}`;
   $('score-charts').hidden=!s;
   if(!s){
     $('metrics').innerHTML=`<div class="metric-card"><div class="metric-name">預測完成</div><div class="metric-value">${execution.count}<small> 筆</small></div><div class="metric-desc">無標準答案，未計算得分</div></div>`;

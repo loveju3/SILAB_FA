@@ -40,7 +40,19 @@ class UITest(unittest.TestCase):
         self.assertEqual(result["summary"]["prediction_file"], "實驗.jsonl")
         self.assertEqual(result["errors"][0]["source_file"], "答案.jsonl")
         self.assertEqual(result["errors"][0]["wrong_fields"], ["category"])
+        self.assertGreaterEqual(result["timing"]["total_seconds"], 0)
+        self.assertIsNone(result["timing"]["prediction_seconds"])
+        saved = json.loads((self.runs / result["run_id"] / "run.json").read_text())
+        self.assertEqual(saved["timing"], result["timing"])
         self.assertNotEqual(result["run_id"], ui_server.evaluate_upload(payload)["run_id"])
+
+    def test_baseline_custom_data_includes_prediction_duration(self):
+        row = {"ticket_id": "S1", "raw_text": "空壓機很吵", "device_id": "D01",
+               "category": "noise", "urgency": "normal", "duplicate_of": None}
+        result = ui_server.evaluate_upload({"gold": "custom", "gold_name": "合成測試.jsonl",
+                                            "gold_content": json.dumps(row), "baseline": True})
+        self.assertGreaterEqual(result["timing"]["prediction_seconds"], 0)
+        self.assertGreaterEqual(result["timing"]["total_seconds"], result["timing"]["prediction_seconds"])
 
     def test_missing_and_bad_uploads_report_errors(self):
         for payload in ({}, {"gold": "custom"}, {"gold": "unknown"}, {"gold": "history", "prediction_content": "not json"}):

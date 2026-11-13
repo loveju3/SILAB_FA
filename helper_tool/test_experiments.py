@@ -59,6 +59,21 @@ class ExperimentTest(unittest.TestCase):
         self.assertTrue(result["label"].endswith("_未評分.jsonl"))
         self.assertEqual(set(result["downloads"]), {"predictions.jsonl"})
 
+    def test_total_and_prediction_timing_are_returned_and_saved(self):
+        def execute(method, limit, folder):
+            (folder / "predictions.jsonl").write_text(json.dumps({
+                "ticket_id": "T1", "device_id": "D01", "category": "noise", "urgency": "normal",
+                "duplicate_of": None, "llm_used": False, "suggestion": "檢查聲音來源"}), encoding="utf-8")
+            return {"method": method, "limit": limit, "wall_seconds": 2.5}
+
+        for labelled in (True, False):
+            with self.subTest(labelled=labelled), patch.object(experiments, "execute", side_effect=execute), \
+                 patch.object(experiments, "perf_counter", side_effect=[100.0, 110.0]):
+                result = experiments.run_experiment(self.payload(labelled=labelled), self.reports)
+            self.assertEqual(result["timing"], {"total_seconds": 10.0, "prediction_seconds": 2.5})
+            saved = json.loads((self.reports / result["run_id"] / "run.json").read_text())
+            self.assertEqual(saved["timing"], result["timing"])
+
     def test_invalid_input_and_options_publish_nothing(self):
         payloads = [self.payload(method="arbitrary.py"), self.payload(limit="pretend-2gb"),
                     self.payload(method=[]), self.payload(limit={}),
