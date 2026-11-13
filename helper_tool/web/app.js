@@ -7,6 +7,7 @@ const pageSize = 15;
 function esc(value){return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function valueText(value){return value === undefined ? '未輸出' : value === null ? 'null' : typeof value === 'object' ? JSON.stringify(value) : String(value);}
 function formatValue(value){return esc(valueText(value));}
+function scoreText(summary){return `加權總分 ${summary.total.toFixed(6)} · 分類 macro-F1 ${summary.metrics.category.toFixed(6)}`;}
 function message(id, text, error=false){const el=$(id);el.textContent=text;el.hidden=!text;el.classList.toggle('error',error);}
 async function api(url, options){let response;try{response=await fetch(url, options);}catch{throw new Error('無法連線到本機工具。請確認啟動工具的視窗仍開啟。');}const data=await response.json();if(!response.ok)throw new Error(data.error || '操作失敗');return data;}
 function navigate(page){document.querySelectorAll('.page').forEach(el=>el.hidden=el.id!==`page-${page}`);document.querySelectorAll('.nav').forEach(el=>{el.classList.toggle('active',el.dataset.page===page);el.setAttribute('aria-current',el.dataset.page===page?'page':'false');});$('breadcrumb').textContent=page==='lookup'?'工單查詢':'評分分析';}
@@ -36,7 +37,7 @@ async function evaluate(baseline=false){
     }
     const result=await api('/api/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     acceptResult(result);
-    message('evaluation-status',`評分完成 · ${result.summary.gold_count} 筆工單 · 總耗時 ${result.timing.total_seconds.toFixed(3)} 秒 · 報告已儲存在 helper_tool/reports/ui/${result.run_id}`);
+    message('evaluation-status',`評分完成 · ${result.summary.gold_count} 筆工單 · ${scoreText(result.summary)} · 總耗時 ${result.timing.total_seconds.toFixed(3)} 秒 · 報告已儲存在 helper_tool/reports/ui/${result.run_id}`);
   }catch(error){message('evaluation-status',error.message,true);}
   finally{controls.forEach(el=>el.disabled=false);}
 }
@@ -58,7 +59,7 @@ $('experiment-form').addEventListener('submit',async event=>{
   controls.forEach(el=>el.disabled=true);
   message('evaluation-status','正在執行預測、評分與整理結果，請稍候…');
   try{
-    const payload={dataset:$('test-dataset').value,method:$('test-method').value,limit:$('test-limit').value,output_dir:$('output-dir').value};
+    const payload={dataset:$('test-dataset').value,method:$('test-method').value,limit:$('test-limit').value,output_dir:$('output-dir').value,model_path:$('model-path').value};
     if(payload.dataset==='custom'){
       const file=$('test-file').files[0];if(!file)throw new Error('請選擇測試資料檔。');
       if(file.size>8*1024*1024)throw new Error('測試資料檔請小於 8 MB。');
@@ -66,7 +67,7 @@ $('experiment-form').addEventListener('submit',async event=>{
     }
     const result=await api('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     acceptResult(result);
-    const report=result.summary?`總分 ${result.summary.total.toFixed(6)} · ${result.errors.length} 筆有錯`:'沒有標準答案，已產生預測但未評分';
+    const report=result.summary?`${scoreText(result.summary)} · ${result.errors.length} 筆有錯`:'沒有標準答案，已產生預測但未評分';
     message('evaluation-status',`完成 ${result.execution.count} 筆 · 總耗時 ${result.timing.total_seconds.toFixed(3)} 秒 · ${report}\n預測檔：${result.execution.output_path}`);
     $('results').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(error){message('evaluation-status',error.message,true);}
@@ -94,8 +95,8 @@ function renderResults(){
     $('metrics').innerHTML=`<div class="metric-card"><div class="metric-name">預測完成</div><div class="metric-value">${execution.count}<small> 筆</small></div><div class="metric-desc">無標準答案，未計算得分</div></div>`;
     $('validation').hidden=true;renderErrors();return;
   }
-  const cards=[['總分',s.total,'加權結果 · 0～1 分',true],['category',s.metrics.category,'macro-F1 · 權重 0.4'],['device',s.metrics.device,'accuracy · 權重 0.2'],['urgency',s.metrics.urgency,'macro-F1 · 權重 0.2'],['duplicate',s.metrics.duplicate,'ID F1 · 權重 0.2']];
-  $('metrics').innerHTML=cards.map(([name,score,desc,total])=>`<div class="metric-card ${total?'total':''}"><div class="metric-name">${name}<span>${total?'SCORE':''}</span></div><div class="metric-value">${total?(score*100).toFixed(2):score.toFixed(3)}${total?'<small> / 100</small>':''}</div><div class="metric-desc">${desc}${total?` · ${score.toFixed(6)}`:''}</div><div class="metric-track"><span style="width:${Math.max(0,Math.min(100,score*100))}%"></span></div></div>`).join('');
+  const cards=[['加權總分',s.total,'四欄加權 · 0～1 分',true],['分類 macro-F1',s.metrics.category,'五類平均 F1 · 權重 0.4',false,true],['device',s.metrics.device,'accuracy · 權重 0.2'],['urgency',s.metrics.urgency,'macro-F1 · 權重 0.2'],['duplicate',s.metrics.duplicate,'ID F1 · 權重 0.2']];
+  $('metrics').innerHTML=cards.map(([name,score,desc,total,precise])=>`<div class="metric-card ${total?'total':''}"><div class="metric-name">${name}<span>${total?'SCORE':''}</span></div><div class="metric-value ${precise?'precise':''}">${total?(score*100).toFixed(2):score.toFixed(precise?6:3)}${total?'<small> / 100</small>':''}</div><div class="metric-desc">${desc}${total?` · ${score.toFixed(6)}`:''}</div><div class="metric-track"><span style="width:${Math.max(0,Math.min(100,score*100))}%"></span></div></div>`).join('');
   const warnings=[];
   if(s.missing_ids.length)warnings.push(`缺少 ${s.missing_ids.length} 筆預測（${s.missing_ids.slice(0,5).join('、')}${s.missing_ids.length>5?'…':''}）`);
   if(s.extra_ids.length)warnings.push(`多餘 ${s.extra_ids.length} 個 ID 不計分（${s.extra_ids.slice(0,5).join('、')}${s.extra_ids.length>5?'…':''}）`);
@@ -148,3 +149,50 @@ async function lookup(){
 }
 $('lookup-form').addEventListener('submit',e=>{e.preventDefault();lookup();});bindTicketLinks(document.querySelector('.quick-queries'));
 api('/api/info').then(info=>{state.devices=info.devices;for(const s of info.sources){for(const id of ['test-dataset','gold-source']){const option=$(id).querySelector(`option[value="${s.name}"]`);if(option)option.disabled=s.available===false;}}if(info.default_output_dir)$('output-dir').value=info.default_output_dir;$('source-counts').innerHTML=info.sources.map(s=>`<span>${esc(s.name)} <b>${s.available===false?'未提供':s.count===null?'僅供驗證':s.count.toLocaleString()+' 筆'}</b></span>`).join('');}).catch(error=>message('lookup-status',error.message,true));
+
+// Training is a persisted backend job. Polling only refreshes the modal view.
+let trainingTimer=null, trainingJobs=[];
+const jobStates={queued:'等待中',running:'訓練中',succeeded:'完成',failed:'失敗',interrupted:'已中斷'};
+const trainingNames={'bge-finetune':'BGE 聯合微調比較','bge-frozen':'凍結 BGE 四候選',tfidf:'TF-IDF 四候選'};
+function metricNumber(value){return typeof value==='number'?value.toFixed(6):'—';}
+function renderTraining(job){
+  const epochs=job.events.filter(e=>e.event==='epoch');
+  const results=job.comparison?.results||[];
+  const active=['queued','running'].includes(job.state);
+  $('start-training').disabled=trainingJobs.some(j=>['queued','running'].includes(j.state));
+  const models=job.state==='succeeded'?(results.length?results.map(r=>({name:r.variant,path:r.model_path,method:r.method||(['bge-lr','bge-svc'].includes(r.variant)?r.variant:'bge-finetuned')})):(job.config.kind==='tfidf'?['tfidf-lr','tfidf-svc']:['bge-lr','bge-svc']).map(method=>({name:method,method,path:`${job.directory}/models/${method}.joblib`}))):[];
+  $('training-results').innerHTML=`<p><strong>${esc(jobStates[job.state]||job.state)}</strong> · ${esc(job.message)}${typeof job.elapsed_seconds==='number'?` · ${job.elapsed_seconds.toFixed(1)} 秒`:''}</p><p class="provenance">${esc(job.directory)}<br>來源：${esc(job.config.source_name)} · ${job.config.count} 筆 · ${esc(trainingNames[job.config.kind])}</p>${results.length?`<h4>相同 history 驗證段的比較</h4><div class="table-scroll"><table class="compare-table"><thead><tr><th>方法</th><th>分類 F1</th><th>六類 F1（選型）</th><th>null 召回</th><th>四欄總分</th><th>最佳 epoch</th></tr></thead><tbody>${results.map(r=>`<tr><td>${esc(r.variant)}</td><td>${metricNumber(r.validation.category_macro_f1)}</td><td>${metricNumber(r.validation.six_class_macro_f1)}</td><td>${metricNumber(r.validation.unknown_recall)}</td><td>${metricNumber(r.pipeline_total)}</td><td>${r.best_epoch||'—'}</td></tr>`).join('')}</tbody></table></div><p class="detail-note">${job.comparison?.refit_full_history?'表中為 train-only 選型驗證成績；保存模型已用完整 history 重訓，權重不同，不可把 history 回測當成獨立測試。':'驗證段同時用於選 epoch，因此是選型驗證成績，不是獨立測試；保存最佳 train-only checkpoint，不以完整 history 重訓。'} 未自動替換預設模型。</p>`:''}${epochs.length?`<h4>逐 epoch 訓練／驗證</h4><div class="table-scroll"><table class="compare-table"><thead><tr><th>方法／epoch</th><th>train loss</th><th>訓練六類 F1</th><th>驗證六類 F1</th><th>驗證分類 F1</th></tr></thead><tbody>${epochs.map(e=>`<tr><td>${esc(e.variant)} / ${e.epoch}</td><td>${e.train_loss.toFixed(4)}</td><td>${metricNumber(e.train.six_class_macro_f1)}</td><td>${metricNumber(e.validation.six_class_macro_f1)}</td><td>${metricNumber(e.validation.category_macro_f1)}</td></tr>`).join('')}</tbody></table></div>`:''}${models.length?`<h4>使用已保存的模型</h4><div class="training-models">${models.map((m,i)=>`<button class="button secondary small" data-trained-model="${i}">${esc(m.name)} → 帶入預測</button>`).join('')}</div>`:''}<details><summary>設定與最近事件（完整紀錄保存在本機）</summary><pre class="training-log">${esc(JSON.stringify({settings:job.config.kind==='bge-finetune'?job.config.settings:'使用既有訓練程式的固定設定',events:job.events},null,2))}</pre></details>`;
+  document.querySelectorAll('[data-trained-model]').forEach(el=>el.addEventListener('click',()=>{const model=models[Number(el.dataset.trainedModel)];$('test-method').value=model.method;$('model-path').value=model.path;$('training-dialog').close();$('experiment-form').scrollIntoView({behavior:'smooth',block:'start'});}));
+  if(active)message('training-status','背景訓練中；關閉此視窗不會停止訓練。');
+}
+async function refreshTraining(preferred){
+  clearTimeout(trainingTimer);
+  try{
+    const data=await api('/api/training');trainingJobs=data.jobs;
+    const selected=preferred||$('training-jobs').value||trainingJobs[0]?.job_id;
+    $('training-jobs').innerHTML=trainingJobs.length?trainingJobs.map(j=>`<option value="${esc(j.job_id)}">${esc(j.job_id)} · ${esc(trainingNames[j.config.kind])} · ${esc(jobStates[j.state])}</option>`).join(''):'<option value="">尚無訓練紀錄</option>';
+    if(trainingJobs.some(j=>j.job_id===selected))$('training-jobs').value=selected;
+    const job=trainingJobs.find(j=>j.job_id===$('training-jobs').value);
+    if(job)renderTraining(job);else{$('training-results').textContent='開始訓練後，這裡會顯示進度、比較結果與模型位置。';$('start-training').disabled=false;}
+    if(job&&!['queued','running'].includes(job.state))message('training-status',job.message,job.state!=='succeeded');
+  }catch(error){message('training-status',error.message,true);}
+  if($('training-dialog').open)trainingTimer=setTimeout(()=>refreshTraining(),2500);
+}
+$('open-training').addEventListener('click',()=>{$('training-dialog').showModal();refreshTraining();});
+$('close-training').addEventListener('click',()=>$('training-dialog').close());
+$('training-dialog').addEventListener('close',()=>clearTimeout(trainingTimer));
+$('refresh-training').addEventListener('click',()=>refreshTraining());
+$('training-jobs').addEventListener('change',()=>refreshTraining());
+$('training-source').addEventListener('change',()=>{$('training-file-label').hidden=$('training-source').value!=='upload';});
+$('training-file').addEventListener('change',()=>{$('training-file-label').textContent=$('training-file').files[0]?.name||'選擇 history JSONL';});
+$('training-kind').addEventListener('change',()=>{$('finetune-settings').hidden=$('training-kind').value!=='bge-finetune';$('finetune-settings').disabled=$('training-kind').value!=='bge-finetune';});
+$('training-form').addEventListener('submit',async event=>{
+  event.preventDefault();$('start-training').disabled=true;
+  try{
+    const payload={kind:$('training-kind').value,source:$('training-source').value,output_dir:$('training-output').value,history_only:$('training-history-only').checked};
+    if(payload.kind==='bge-finetune')payload.settings={epochs:Number($('train-epochs').value),encoder_lr:Number($('train-encoder-lr').value),head_lr:Number($('train-head-lr').value),weight_decay:Number($('train-decay').value),dropout:Number($('train-dropout').value),label_smoothing:Number($('train-smoothing').value)};
+    if(payload.source==='upload'){const file=$('training-file').files[0];if(!file)throw new Error('請選擇 history JSONL。');if(file.size>8*1024*1024)throw new Error('history 請小於 8 MB。');payload.history_name=file.name;payload.history_content=await file.text();}
+    const job=await api('/api/training',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    message('training-status','已建立訓練工作；模型與紀錄會保存在時間戳資料夾。');await refreshTraining(job.job_id);
+  }catch(error){message('training-status',error.message,true);$('start-training').disabled=false;}
+});

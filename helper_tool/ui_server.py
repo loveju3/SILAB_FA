@@ -28,6 +28,7 @@ except ImportError:
 from baseline.predict import main as baseline_predict
 # experiments uses package-relative imports, also when this server is a script.
 from helper_tool.experiments import run_experiment
+from helper_tool.training_jobs import get_job, list_jobs, start_job
 
 WEB = Path(__file__).resolve().parent / "web"
 RUNS = Path(__file__).resolve().parent / "reports/ui"
@@ -125,6 +126,9 @@ class Handler(BaseHTTPRequestHandler):
                     sources.append({"name": name, "count": count, "available": path.is_file()})
                 self.respond({"sources": sources, "default_output_dir": str(ROOT / "Solution/predictions"),
                               "devices": json.loads((ROOT / "data/devices.json").read_text(encoding="utf-8"))})
+            elif url.path == "/api/training":
+                job_id = parse_qs(url.query).get("id", [None])[0]
+                self.respond(get_job(job_id) if job_id else {"jobs": list_jobs()})
             elif url.path == "/api/lookup":
                 ids = parse_qs(url.query).get("id", [""])[0].split()
                 if not ids or len(ids) > 30:
@@ -158,7 +162,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.local_request():
             return
-        if self.path not in ("/api/evaluate", "/api/run"):
+        if self.path not in ("/api/evaluate", "/api/run", "/api/training"):
             self.respond({"error": "找不到操作"}, 404)
             return
         try:
@@ -170,7 +174,10 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("請傳送 JSON object")
-            self.respond(run_experiment(payload, RUNS) if self.path == "/api/run" else evaluate_upload(payload))
+            if self.path == "/api/training":
+                self.respond(start_job(payload), 202)
+            else:
+                self.respond(run_experiment(payload, RUNS) if self.path == "/api/run" else evaluate_upload(payload))
         except (OSError, ValueError, UnicodeError) as exc:
             self.respond({"error": str(exc)}, 400)
 

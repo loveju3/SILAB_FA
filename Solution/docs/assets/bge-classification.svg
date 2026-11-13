@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="890" viewBox="0 0 980 890" role="img" aria-labelledby="title desc">
+<title id="title">方案 C｜一筆文字如何決定類別</title><desc id="desc">已知錯誤碼一致時直接分類；否則經 BGE 與資訊判斷頭，unknown 回 null，known 進五類分類頭。</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52667a"/></marker></defs>
+<rect width="980" height="890" rx="16" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Microsoft JhengHei, PingFang TC, sans-serif" text-anchor="middle" fill="#172b3a">
+<text x="490.0" y="40" font-size="24" font-weight="700">方案 C｜一筆文字如何決定類別</text>
+<rect x="260" y="70" width="460" height="64" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="490.0" y="108.0" font-size="19" fill="#172b3a">已完成前處理的當筆文字</text>
+<path d="M 490 134 V 164" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<polygon points="490,169 720,229 490,289 260,229" fill="#fff4d6" stroke="#baa25f" stroke-width="1.5"/>
+<text x="490" y="222" font-size="18" fill="#172b3a">至少一個已知錯誤碼，且</text>
+<text x="490" y="249" font-size="18" fill="#172b3a">所有已知碼的類別一致？</text>
+<path d="M 720 229 H 825 V 740" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="790" y="211" font-size="17" fill="#172b3a">是</text>
+<rect x="730" y="745" width="190" height="76" rx="12" fill="#e8f5ef" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="825.0" y="779.0" font-size="19" fill="#172b3a">對照表類別</text>
+<text x="825.0" y="804.0" font-size="15" fill="#465a6b">略過 BGE 與分類頭</text>
+<path d="M 490 289 V 325" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="520" y="314" font-size="17" fill="#172b3a">否</text>
+<rect x="260" y="330" width="460" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="490.0" y="364.0" font-size="19" fill="#172b3a">固定 BGE encoder</text>
+<text x="490.0" y="389.0" font-size="15" fill="#465a6b">最長 512 tokens → CLS → L2 → 512 維</text>
+<path d="M 490 406 V 442" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="260" y="447" width="460" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="490.0" y="481.0" font-size="19" fill="#172b3a">資訊判斷頭：獨立 LR</text>
+<text x="490.0" y="506.0" font-size="15" fill="#465a6b">用 history 的 known／unknown 範例學習</text>
+<path d="M 260 485 H 150 V 582" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="170" y="465" font-size="16" fill="#172b3a">unknown</text>
+<rect x="55" y="587" width="190" height="76" rx="12" fill="#fff0ee" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="150.0" y="621.0" font-size="19" fill="#172b3a">暫定 category=null</text>
+<text x="150.0" y="646.0" font-size="15" fill="#465a6b">資訊不足</text>
+<path d="M 490 523 V 582" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="525" y="555" font-size="16" fill="#172b3a">known</text>
+<rect x="290" y="587" width="400" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="490.0" y="621.0" font-size="19" fill="#172b3a">五類分類頭：LR 或 LinearSVC</text>
+<text x="490.0" y="646.0" font-size="15" fill="#465a6b">noise／temperature／power／software／other</text>
+<path d="M 150 663 V 847 H 365" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M 490 663 V 817" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M 825 821 V 847 H 615" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="370" y="822" width="240" height="52" rx="12" fill="#e8f5ef" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="490.0" y="854.0" font-size="19" fill="#172b3a">回完整管線處理上下文</text>
+</g>
+</svg>

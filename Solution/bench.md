@@ -62,3 +62,23 @@ OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 .venv/bin/python Solution/scripts/bench
 ```
 
 原始紀錄分別為 `experiments/runs/20261113T032128Z-f32a357b/`、`experiments/runs/20261113T032237Z-1c68ecde/`。模型、訓練來源與版本在 metrics 的 model metadata；每次保存輸入、程式與資產雜湊、逐筆耗時及完整預測。已確認同方法三次結果一致，並與 2 GB 容器三次結果逐位元一致，總時間均小於 480 秒。BGE、實體 8 GB／x86 尚未量測。
+
+## 方案 C：固定 BGE encoder 追加量測（2026-11-13）
+
+使用相同 Apple M4 Max／36 GiB 主機、原生 macOS ARM64、固定 embedding 依賴、CPU threads=2、batch size=16、max length=512、float32、CLS＋L2，不使用 GPU/MPS。每種方法三次新 Python 程序，沒有顯式預熱，不清 OS 快取。尚未在實體 8 GB／x86 上驗證。
+
+| 實測方法 | history 內部 category F1 | dev 分數 | tickets 程序總時間 s | 每筆服務 P50 ms 範圍 | P95 ms 範圍 | 最大 ms | 程序峰值 RSS MiB |
+|---|---:|---|---|---|---|---:|---|
+| C-LR 保留名稱 | 0.793935 | 未驗證 | 19.615～21.021 | 48.829～50.382 | 107.579～122.273 | 175.816 | 901.97～984.36 |
+| C-SVC 保留名稱 | 0.897928 | 未驗證 | 19.099～19.524 | 46.309～48.913 | 108.283～115.486 | 132.636 | 829.78～949.70 |
+
+**C 的每筆秒數包括所在分類批次的完整共享服務時間＋該筆其餘規則時間，並非 B 的單筆獨立分類延遲。** 同批成員共享同一段分類時間，因此不能把每筆秒數加總或將表中 P50／P95 直接與 B 比較。nearest-rank 計算方式相同；逐筆 JSON 另有 batch_classification_seconds 可辨認共享成本。共同文字準備、排序、驗證與序列化不在該筆時間內，但完整計入程序總時間。沒有把模型載入或真正的 encoder 計算隱藏成快取命中；正式推論不讀訓練向量快取。
+
+總時間含 Python、Torch／Transformers 與本機 encoder／分類頭載入、所有編碼及規則、預測與量測寫檔。RSS 仍以 getrusage 取得，不能由 96 MB 權重大小推估程序只用 96 MB；此處實測明顯高於 B。批次補齊長度、分詞及矩陣運算可能影響尾延遲，尚未以 profiler 分離比例。
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 .venv/bin/python Solution/scripts/benchmark.py --method bge-lr --runs 3
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 .venv/bin/python Solution/scripts/benchmark.py --method bge-svc --runs 3
+```
+
+採用的原始紀錄：`experiments/runs/20261113T074552Z-19afab94/`、`experiments/runs/20261113T074714Z-a04be153/`。較早 LR 初測與 Docker 建置重疊，未拿來作本表數字；本表在建置完成後重新量測。各次保存資產／輸入／程式 SHA-256、模型 revision、載入與管線時間、逐筆計時與預測。history 內部分數來自 200 筆 fit／90 筆驗證的權重，正式效能使用完整 history 重訓權重，詳見 [C 實驗文件](docs/BGE方案C方法與實驗.md)。本節已更新先前「BGE 未量測」的進度。

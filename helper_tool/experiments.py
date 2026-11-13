@@ -15,8 +15,8 @@ from .evaluate import analyze, write_reports
 from Solution.triage.io import read_tickets
 
 METHODS = {"solution-a": "predict.py", "baseline": "baseline/predict.py",
-           "tfidf-lr": "predict.py", "tfidf-svc": "predict.py"}
-MODEL_METHODS = {"tfidf-lr", "tfidf-svc"}
+           "tfidf-lr": "predict.py", "tfidf-svc": "predict.py", "bge-lr": "predict.py", "bge-svc": "predict.py", "bge-finetuned": "predict.py"}
+MODEL_METHODS = {"tfidf-lr", "tfidf-svc", "bge-lr", "bge-svc", "bge-finetuned"}
 LIMITS = {"native", "2gb"}
 TAIPEI = timezone(timedelta(hours=8))
 
@@ -28,9 +28,11 @@ def safe_name(name: str) -> str:
     return name[:60] or "dataset"
 
 
-def execute(method: str, limit: str, folder: Path) -> dict:
+def execute(method: str, limit: str, folder: Path, model_path: Path | None = None) -> dict:
     script = METHODS[method]
     options = ["--method", method] if method in MODEL_METHODS else []
+    if model_path is not None:
+        options.extend(["--model-path", str(model_path)])
     args = [script, str(folder / "input.jsonl"), str(folder / "predictions.jsonl"), *options]
     if method != "baseline":
         args.extend(["--metrics", str(folder / "metrics.json")])
@@ -41,6 +43,10 @@ def execute(method: str, limit: str, folder: Path) -> dict:
     else:
         if shutil.which("docker") is None:
             raise ValueError("2 GB 模式需要先安裝並啟動 Docker")
+        mounts = []
+        if model_path is not None:
+            options = ["--method", method, "--model-path", f"/models/{model_path.name}"]
+            mounts = ["--mount", f"type=bind,src={model_path.parent},dst=/models,readonly"]
         args = [script, "/run/input.jsonl", "/run/predictions.jsonl", *options]
         if method != "baseline":
             args.extend(["--metrics", "/run/metrics.json"])
@@ -50,7 +56,8 @@ def execute(method: str, limit: str, folder: Path) -> dict:
                    "--env", "OMP_NUM_THREADS=2", "--env", "OPENBLAS_NUM_THREADS=2",
                    "--env", "MKL_NUM_THREADS=2", "--mount", f"type=bind,src={ROOT},dst=/app,readonly",
                    "--mount", f"type=bind,src={folder},dst=/run", "--workdir", "/app",
-                   "--entrypoint", "python3", "silab-fa:scheme-b" if method in MODEL_METHODS else "silab-fa:scheme-a",
+                   *mounts, "--entrypoint", "python3", "silab-fa:scheme-c" if method.startswith("bge-") else
+                   "silab-fa:scheme-b" if method in MODEL_METHODS else "silab-fa:scheme-a",
                    "Solution/scripts/check_limits.py", "--report", "/run/limits.json", "--run", *args]
     started = perf_counter()
     try:
@@ -66,6 +73,8 @@ def execute(method: str, limit: str, folder: Path) -> dict:
         detail = (result.stderr or result.stdout).strip()[-2000:]
         raise ValueError(f"預測失敗（退出碼 {result.returncode}）：{detail}")
     execution = {"method": method, "limit": limit, "wall_seconds": perf_counter() - started}
+    if model_path is not None:
+        execution["model_path"] = str(model_path)
     if limit == "2gb":
         limits = json.loads((folder / "limits.json").read_text(encoding="utf-8"))
         if (limits.get("memory.max"), limits.get("memory.swap.max"), limits.get("exit_code")) != (
@@ -82,7 +91,20 @@ def run_experiment(payload: dict, reports: Path) -> dict:
     if dataset not in ("dev", "history", "tickets", "custom"):
         raise ValueError("請選擇 dev、history、tickets 或自訂資料集")
     if not isinstance(method, str) or not isinstance(limit, str) or method not in METHODS or limit not in LIMITS:
-        raise ValueError("不支援的方法或限制；目前提供方案 A／Baseline／TF-IDF LR／TF-IDF SVC、本機／2 GB")
+        raise ValueError("不支援的方法或限制；目前提供方案 A／B（TF-IDF）／C（BGE）／Baseline，本機／2 GB")
+    model_value = payload.get("model_path", "")
+    if not isinstance(model_value, str):
+        raise ValueError("模型路徑須為字串")
+    model_path = None
+    if model_value.strip():
+        if method not in MODEL_METHODS:
+            raise ValueError("此方法不使用模型路徑")
+        model_path = Path(model_value.strip()).expanduser()
+        model_path = (model_path if model_path.is_absolute() else ROOT / model_path).resolve()
+        if not model_path.exists():
+            raise ValueError("找不到指定的模型路徑")
+    if method == "bge-finetuned" and model_path is None:
+        raise ValueError("請選擇訓練紀錄中的模型，或指定神經模型資料夾")
     output_value = payload.get("output_dir", "Solution/predictions")
     if not isinstance(output_value, str) or not output_value.strip():
         raise ValueError("請指定預測檔輸出資料夾")
@@ -113,7 +135,7 @@ def run_experiment(payload: dict, reports: Path) -> dict:
         # Validate before expensive inference. No output or report is published on failure.
         read_tickets(source)
         output_dir.mkdir(parents=True, exist_ok=True)
-        execution = execute(method, limit, folder)
+        execution = execute(method, limit, folder, model_path) if model_path is not None else execute(method, limit, folder)
         predicted = folder / "predictions.jsonl"
         predictions = {r["ticket_id"]: r for _, r in read_records(predicted)}
         if set(predictions) != {r["ticket_id"] for _, r in rows}:

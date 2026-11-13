@@ -2,7 +2,7 @@
 
 **資料使用規則：** dev 僅供固定版本驗證，不得觀察 dev 原文、標籤或逐筆錯題來設計／調整算法。工具保留 dev 評分與報告功能，開發時的錯誤分析請使用 history。完整規範見 [AGENTS.md](../AGENTS.md)。
 
-評分、查詢與方案 A 只需 Python 3，沒有第三方套件。方案 B 的 TF-IDF 方法另需 ML 依賴與 history 訓練模型。以下指令從專案根目錄執行；工具也能從其他目錄以絕對路徑執行。使用者提供的命令列檔案路徑相對於執行目錄，UI 輸出與預設資料路徑則固定相對於專案根目錄。
+評分、查詢與方案 A 只需 Python 3，沒有第三方套件。方案 B 的 TF-IDF 與方案 C 的 BGE 方法另需各自依賴與 history 訓練模型。以下指令從專案根目錄執行；工具也能從其他目錄以絕對路徑執行。使用者提供的命令列檔案路徑相對於執行目錄，UI 輸出與預設資料路徑則固定相對於專案根目錄。
 
 ## 網頁操作版（建議）
 
@@ -22,12 +22,14 @@
 ### 一鍵執行預測
 
 1. 選擇 dev、history、tickets，或「自行選擇 JSONL」上傳本機資料。
-2. 選方法：方案 A、Baseline、TF-IDF＋Logistic Regression 或 TF-IDF＋LinearSVC。
+2. 選方法：方案 A、Baseline、TF-IDF＋Logistic Regression 、TF-IDF＋LinearSVC，或方案 C 的 BGE＋LR／SVC。
 3. 選環境：本機（未限制記憶體）或 2 GB Docker 容器。
 4. 填入輸出資料夾，預設 `Solution/predictions`。接受絕對路徑；相對路徑固定依專案根目錄解析，資料夾不存在會建立。
 5. 按「執行預測與評分」，完成後下方顯示結果、實際儲存位置與下載按鈕。
 
 結果區另有「本次實驗耗時」卡片，以秒顯示三位小數：總耗時從後端進入實驗函式起，量到準備資料、預測、評分及輸出檔／報告儲存完成；不含檔案傳輸、頁面繪製及最後的計時 metadata 寫入。預測執行時間另列，2 GB 模式包含容器啟動與清理。單純上傳預測檔評分時顯示「未執行預測」，不把評分時間當推論時間。計時使用 perf_counter，並保存至每次報告的 run.json。
+
+有標準答案時，「分類 macro-F1」卡片與完成訊息會顯示六位小數，直接取官方評分結果的 category 指標；「加權總分」則是四欄加權後的另一個指標。此功能同時適用自動預測與上傳預測檔評分。完全未提供標籤的資料只顯示「未評分」，不顯示 F1；即使指標相同，訓練資料回測與獨立驗證的分數仍不能直接比較。
 
 檔名自動組成，不需要手填：
 
@@ -57,6 +59,17 @@ docker build -f Solution/Dockerfile.ml -t silab-fa:scheme-b .
 ```
 
 UI 執行本機 TF-IDF 時優先選專案 .venv，A／Baseline 使用原本的 Python。方法名稱會進入檔名（tfidf-lr／tfidf-svc）；不會自動切換分類器或偷偷訓練模型。模型、.venv、預測與報告不加入 Git。詳見 [TF-IDF 設計與比較](../Solution/docs/TF-IDF實作與比較.md)。
+
+方案 C 另外執行以下步驟，下載只發生於事前安裝，推論不連網：
+
+```bash
+.venv/bin/python -m pip install -r Solution/requirements-embedding.txt
+.venv/bin/python Solution/scripts/download_encoder.py
+.venv/bin/python Solution/train_embedding.py
+docker build -f Solution/Dockerfile.embedding -t silab-fa:scheme-c .
+```
+
+UI 提供 bge-lr／bge-svc，2 GB 會選擇 scheme-c，依舊驗證實際記憶體與 swap 限制。模型以完整 history 重訓；UI 選 history 是訓練資料回測，不等於 history 後段 90 筆的內部驗證。C 的每筆延遲包含完整共享批次服務時間，不與 B 的單筆獨立推論延遲直接比較。詳見 [BGE 方案 C](../Solution/docs/BGE方案C方法與實驗.md)。
 
 UI 預設 history；不存在的資料集選項會停用。開啟頁面不掃描 dev 的原文、標籤或筆數，dev 僅標示供固定版本驗證。
 
@@ -135,3 +148,17 @@ python3 -m unittest discover -s helper_tool -p 'test_*.py' -v
 開發新算法時，建議使用 `.venv/bin/python Solution/scripts/test_development.py`，會一併執行核心與工具測試、預設略過兩項 dev 驗證測試，並阻止測試程序直接開啟 dev。舊有 dev 驗證測試只有在版本固定後明確設定 `SILAB_VALIDATE_DEV=1` 才會執行；此輪開發沒有啟用。
 
 測試會比較 helper 的指標加權結果與官方評分，涵蓋真實 baseline、雙 null、缺失／無效預測、duplicate 指錯對象、重複 ID、壞 JSON 及跨來源查詢。測試產物放在暫存目錄。
+
+## 從網頁訓練模型
+
+按工作台右上角「訓練模型」開啟 modal，可選用專案 history 或上傳 history JSONL、設定保存根目錄與有限範圍的微調參數。預設比較凍結 BGE＋LR／SVC、凍結神經頭、以及 **encoder＋分類頭聯合微調**。既有 TF-IDF 與凍結 BGE 四候選也可從同一個視窗觸發。
+
+訓練使用 `.venv` 的背景程序，和 UI 請求分開；關閉 modal／重新整理頁面不會停止訓練。依跨程序鎖，同專案一次只允許一個訓練。來源快照、設定、程式快照、log、逐 epoch 指標及模型保存於「指定根目錄／台北日期時間戳＋唯一編號」，索引保存於 `helper_tool/reports/training/`。UI 顯示最近 50 筆，舊資料不自動刪除。自訂的工作資料夾也會有 `.gitignore`，避免模型與原始資料誤入 Git。
+
+預設 encoder lr=1e-5、head lr=1e-3、最多 5 epochs、dropout=0.2、label smoothing=0.1、weight decay=0.01，驗證六類 F1 連續兩輪未改善即停止。這些只是降低小資料過擬合風險的起點，不能保證泛化。訓練與驗證指標並列保留；模型不自動取代預設版本。
+
+成功後按「帶入預測」，填入該次模型路徑；也可手動填入。神經模型使用 `bge-finetuned` 方法及模型資料夾，LR／SVC 使用對應方法與 `.joblib`。訓練本身在本機 CPU 執行，**沒有 2 GB 上限**；推論可另外選 2 GB 並讀取指定模型。仍須事先安裝依賴、下載公開 BGE 權重及建置所需 Docker 映像。
+
+訓練 API 為 `POST /api/training`，查詢為 `GET /api/training` 及 `GET /api/training?id=工作ID`，皆受原有 localhost／Origin 檢查保護。API 不接受 dev 作為訓練來源；上傳前須確認資料是 history。檔名檢查不能識別改名的 dev，資料使用仍須遵守專案規範。
+
+完整設定、比較分數、模型格式與保存結構見 [BGE 聯合微調與 UI 訓練](../Solution/docs/BGE聯合微調與UI訓練.md)。

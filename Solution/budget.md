@@ -83,3 +83,30 @@ docker build -f Solution/Dockerfile.ml -t silab-fa:scheme-b .
 ```
 
 原始紀錄：`experiments/runs/budget-tfidf-lr-287e1140ed0c/`、`experiments/runs/budget-tfidf-svc-80aec98fef41/`。目前 runner 預設 history；若要在版本固定後重現 A 舊紀錄的 dev 步驟，需明確指定 `--validation-dataset dev`，不在開發過程預設讀取 dev。
+
+## 方案 C：完整 BGE encoder 與分類頭的 2 GB 驗證
+
+2026-11-13 已建置 `Solution/Dockerfile.embedding` 為 `silab-fa:scheme-c`。保留完整 float32 BGE-small-zh-v1.5、512 維 CLS＋L2、batch size=16、兩個 CPU 執行緒及原有四欄管線，沒有量化、刪除模組或退回規則版。PyTorch 使用 CPU wheel；推論時禁止連網及拉取映像。
+
+LR 的獨立超限 probe 退出 137 且 OOMKilled=true，證明限制可觸發。兩方法各執行一次 history 可執行性檢查及三次完整 2,000 筆 tickets：全部退出 0、OOMKilled=false；每次查驗 memory.max=2147483648、memory.swap.max=0、cpu.max=200000 100000，正式推論的 cgroup OOM 計數為 0。
+
+| 方法 | 三次 tickets 完整程序時間 s | 每筆服務 P50 ms 範圍 | P95 ms 範圍 | 最大 ms | 容器 memory.peak MiB |
+|---|---|---|---|---:|---|
+| C-LR 保留名稱 | 29.625～30.027 | 104.860～107.889 | 288.484～299.787 | 384.960 | 499.88～508.50 |
+| C-SVC 保留名稱 | 29.219～29.780 | 97.658～101.843 | 281.605～293.884 | 340.022 | 497.04～521.42 |
+
+總時間包含子程序冷啟動、依賴與模型載入、真正 encoder 運算、規則及輸出，不含 Docker 啟動。每次使用新容器，無顯式預熱，不清 OS 快取。**每筆服務時間包含所在分類批次的完整共享時間，不能相加，也不能直接與 B 的單筆獨立分類 P50／P95 比較。** 定義見 [bench.md](bench.md)。容器 memory.peak 包含 wrapper、子程序及計入 cgroup 的快取，與 macOS 程序 RSS 口徑不同。
+
+兩方法均在 480 秒預算內完成。各自三次容器輸出與三次原生輸出逐位元相同；整理預測留在 `predictions/bge-lr_tickets.jsonl`、`predictions/bge-svc_tickets.jsonl`。這證明本次 tickets 輸出一致，不能替代有標籤資料的掉分驗證。完整 history 已用於重訓，此處不把 history 回測當成泛化分數；本次沒有 dev 資料，沒有 C 的 dev 分數或受限環境掉分數據。
+
+```bash
+docker build -f Solution/Dockerfile.embedding -t silab-fa:scheme-c .
+.venv/bin/python Solution/scripts/run_budget.py --method bge-lr --probe
+.venv/bin/python Solution/scripts/run_budget.py --method bge-svc
+```
+
+正式原始紀錄：`experiments/runs/budget-bge-lr-818edeb29820/`、`experiments/runs/budget-bge-svc-b273098b153f/`，含 limits、metrics、預測與 docker inspect 選定欄位。之後 CLI 說明文字微調並重新建置，推論邏輯與權重沒有改動；各次實際映像 ID 與程式雜湊仍以其原始紀錄為準。
+
+另以最終映像預設 CMD 執行不掛載原始碼的離線 smoke test，只掛載唯讀 tickets 輸入及結果資料夾，仍在 2 GB／禁止 swap／2 CPU 下成功處理 2,000 筆，輸出與原生 C-LR 逐位元一致。結果在 `reports/c-image-smoke/`。最終映像 manifest-list digest 為 `sha256:7ab33c3acc456d9a0f4a9725171e63554ed4047514f49e771cf9e65c757ca37e`。
+
+UI 另以兩筆自行撰寫的合成資料驗證 C-LR 本機及 C-SVC 2 GB 的 API：輸出檔名、分類 macro-F1、完整／錯題結果及總／預測時間均可回傳；紀錄在 `reports/c-ui-smoke/`，不把合成資料的分數當成模型成績。開發測試 52 項中 50 項通過、2 項 dev 驗證預設略過；前端 JavaScript 語法及 diff whitespace 檢查通過。

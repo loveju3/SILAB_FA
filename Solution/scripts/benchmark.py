@@ -17,7 +17,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, default=ROOT / "data/tickets.jsonl")
     parser.add_argument("--runs", type=int, default=3)
-    parser.add_argument("--method", choices=("rules", "tfidf-lr", "tfidf-svc"), default="rules")
+    parser.add_argument("--method", choices=("rules", "tfidf-lr", "tfidf-svc", "bge-lr", "bge-svc"), default="rules")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "Solution/experiments/runs")
     args = parser.parse_args()
     if args.runs < 1:

@@ -1,0 +1,21 @@
+FROM python:3.13-slim
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    OMP_NUM_THREADS=2 \
+    OPENBLAS_NUM_THREADS=2 \
+    MKL_NUM_THREADS=2 \
+    TOKENIZERS_PARALLELISM=false \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
+COPY Solution/requirements-ml.txt Solution/requirements-embedding.txt /app/
+# CPU wheels avoid unnecessary CUDA runtimes in the offline CPU image.
+RUN pip install --no-cache-dir torch==2.9.0 --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r /app/requirements-embedding.txt
+COPY data/devices.json data/error_codes.json /app/data/
+COPY Solution/triage/ /app/Solution/triage/
+COPY Solution/config/ /app/Solution/config/
+COPY Solution/models/ /app/Solution/models/
+COPY Solution/predict.py /app/Solution/predict.py
+COPY Solution/scripts/check_limits.py /app/Solution/scripts/check_limits.py
+ENTRYPOINT ["python3"]
+CMD ["Solution/predict.py", "/input/tickets.jsonl", "/results/predictions.jsonl", "--method", "bge-lr", "--metrics", "/results/metrics.json"]

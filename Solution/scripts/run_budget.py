@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image", help="預設依方法選 scheme-a 或 scheme-b")
-    parser.add_argument("--method", choices=("rules", "tfidf-lr", "tfidf-svc"), default="rules")
+    parser.add_argument("--image", help="預設依方法選 scheme-a、scheme-b 或 scheme-c")
+    parser.add_argument("--method", choices=("rules", "tfidf-lr", "tfidf-svc", "bge-lr", "bge-svc"), default="rules")
     parser.add_argument("--validation-dataset", choices=("history", "dev"), default="history",
                         help="預設以 history 檢查可執行性；dev 僅於版本固定後明確指定")
     parser.add_argument("--runs", type=int, default=3)
@@ -21,7 +21,7 @@ def main():
     args = parser.parse_args()
     if args.runs < 1:
         parser.error("--runs 必須 >= 1")
-    args.image = args.image or ("silab-fa:scheme-a" if args.method == "rules" else "silab-fa:scheme-b")
+    args.image = args.image or ("silab-fa:scheme-a" if args.method == "rules" else "silab-fa:scheme-c" if args.method.startswith("bge-") else "silab-fa:scheme-b")
     directory = ROOT / "Solution/experiments/runs" / ("budget-" + args.method + "-" + uuid.uuid4().hex[:12])
     directory.mkdir(parents=True)
     records = []

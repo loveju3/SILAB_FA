@@ -10,6 +10,8 @@ from .text import error_codes
 
 
 class LinearTextClassifier:
+    evidence_label = "字元 TF-IDF 線性分類"
+
     def __init__(self, bundle: dict, codes: dict):
         self.vectorizer = bundle["vectorizer"]
         self.category_model = bundle["category_model"]
@@ -17,14 +19,19 @@ class LinearTextClassifier:
         self.mask_device_names = bundle["mask_device_names"]
         self.codes = codes
 
-    def classify(self, text: str) -> CategoryMatch:
+    def code_match(self, text: str) -> CategoryMatch | None:
         known = [self.codes[c]["category"] for c in error_codes(text) if c in self.codes]
         if known and len(set(known)) == 1:
             return CategoryMatch(known[0], "已知錯誤碼")
-        features = self.vectorizer.transform([text])
+        return None
+
+    def classify_features(self, features) -> CategoryMatch:
         if self.information_model.predict(features)[0] == "unknown":
             return CategoryMatch(None, "history 訓練的資訊不足判斷")
-        return CategoryMatch(str(self.category_model.predict(features)[0]), "字元 TF-IDF 線性分類")
+        return CategoryMatch(str(self.category_model.predict(features)[0]), self.evidence_label)
+
+    def classify(self, text: str) -> CategoryMatch:
+        return self.code_match(text) or self.classify_features(self.vectorizer.transform([text]))
 
     @classmethod
     def load(cls, path: Path, codes: dict, method: str):

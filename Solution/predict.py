@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scheme A CLI: python3 Solution/predict.py INPUT.jsonl OUTPUT.jsonl."""
+"""Offline A/B/C CLI: python3 Solution/predict.py INPUT.jsonl OUTPUT.jsonl."""
 from time import perf_counter
 
 PROCESS_START = perf_counter()
@@ -13,7 +13,7 @@ import sys
 
 from triage.factory import METHODS, build_classifier
 from triage.devices import DeviceResolver
-from triage.io import ROOT, atomic_write, load_json, read_tickets
+from triage.io import ROOT, atomic_write, file_sha256, load_json, read_tickets
 from triage.metrics import latency_summary, peak_rss_bytes
 from triage.pipeline import predict
 
@@ -21,7 +21,7 @@ SOLUTION = Path(__file__).resolve().parent
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="離線分流：規則／TF-IDF 線性分類；不讀取輸入標籤")
+    parser = argparse.ArgumentParser(description="離線分流：規則／TF-IDF／BGE 線性分類；不讀取輸入標籤")
     parser.add_argument("input", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--metrics", type=Path, help="額外寫入量測與逐筆耗時 JSON")
@@ -49,17 +49,20 @@ def main(argv=None) -> int:
                                           for p in predictions))
         written = perf_counter()
         if args.metrics:
+            latency = latency_summary(timings)
+            if getattr(classifier, "timing_description", None):
+                latency["method"] = classifier.timing_description
             artifacts = [*paths, Path(__file__), *sorted((SOLUTION / "triage").glob("*.py")), *model_paths]
             report = {
                 **model_info, "python": sys.version, "platform": platform.platform(),
                 "input": str(args.input.resolve()), "input_sha256": hashlib.sha256(args.input.read_bytes()).hexdigest(),
-                "artifacts_sha256": {str(p.resolve()): hashlib.sha256(p.read_bytes()).hexdigest() for p in artifacts},
+                "artifacts_sha256": {str(p.resolve()): file_sha256(p) for p in artifacts},
                 "load_seconds": loaded - PROCESS_START,
                 "pipeline_seconds": inferred - loaded,
                 "serialization_write_seconds": written - inferred,
                 "elapsed_to_output_seconds": written - PROCESS_START,
                 "timing_scope": "starts at first Python statement; external runner measures full process startup and metrics write",
-                "peak_rss_bytes": peak_rss_bytes(), "latency": latency_summary(timings), "tickets": timings,
+                "peak_rss_bytes": peak_rss_bytes(), "latency": latency, "tickets": timings,
             }
             atomic_write(args.metrics, json.dumps(report, ensure_ascii=False, indent=2) + "\n")
     except (OSError, ValueError, KeyError, TypeError) as exc:

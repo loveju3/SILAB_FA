@@ -11,6 +11,12 @@ class CategoryMatch:
     evidence: str | None
 
 
+@dataclass(frozen=True)
+class BatchClassifications:
+    predictions: list[CategoryMatch]
+    batch_seconds: list[float]  # Full shared batch service time for each member.
+
+
 class CategoryClassifier(Protocol):
     mask_device_names: bool
 

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="783" viewBox="0 0 780 783" role="img" aria-labelledby="title desc">
+<title id="title">方案 C｜訓練與選型</title><desc id="desc">驗證向量不參與分類頭 fit；正式推論不使用訓練向量快取。</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52667a"/></marker></defs>
+<rect width="780" height="783" rx="16" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Microsoft JhengHei, PingFang TC, sans-serif" text-anchor="middle" fill="#172b3a">
+<text x="390.0" y="40" font-size="24" font-weight="700">方案 C｜訓練與選型</text>
+<rect x="70" y="75" width="640" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="109.0" font-size="19" fill="#172b3a">1. 準備 history 與固定 BGE 權重</text>
+<text x="390.0" y="134.0" font-size="15" fill="#465a6b">dev 不參與訓練、錯誤分析或選型</text>
+<path d="M 390 151 V 178" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="70" y="183" width="640" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="217.0" font-size="19" fill="#172b3a">2. 按時間分割，排除跨集合的近似模板</text>
+<text x="390.0" y="242.0" font-size="15" fill="#465a6b">本次：200 筆訓練／90 筆驗證／10 筆排除</text>
+<path d="M 390 259 V 286" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="70" y="291" width="640" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="325.0" font-size="19" fill="#172b3a">3. 準備兩種文字，再產生 512 維向量</text>
+<text x="390.0" y="350.0" font-size="15" fill="#465a6b">保留設備名稱／遮罩設備資訊；encoder 權重不更新</text>
+<path d="M 390 367 V 394" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="70" y="399" width="640" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="433.0" font-size="19" fill="#172b3a">4. 只用訓練列學習分類頭</text>
+<text x="390.0" y="458.0" font-size="15" fill="#465a6b">問題類別：LR 或 SVC；資訊是否足夠：另一個 LR</text>
+<path d="M 390 475 V 502" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="70" y="507" width="640" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="541.0" font-size="19" fill="#172b3a">5. 在 history 驗證段比較四個候選</text>
+<text x="390.0" y="566.0" font-size="15" fill="#465a6b">LR／SVC × 保留／遮罩；比較含 unknown 的六類 F1</text>
+<path d="M 390 583 V 610" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="70" y="615" width="640" height="76" rx="12" fill="#e8f5ef" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="649.0" font-size="19" fill="#172b3a">6. 各方法固定設定，再用完整 history 重訓</text>
+<text x="390.0" y="674.0" font-size="15" fill="#465a6b">本次 LR、SVC 都選保留名稱；保存模型與來源紀錄</text>
+<text x="390" y="763" font-size="14" fill="#172b3a">驗證向量不參與分類頭 fit；正式推論不使用訓練向量快取。</text>
+</g>
+</svg>

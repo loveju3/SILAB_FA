@@ -14,18 +14,19 @@
   <main>
     <header class="topbar"><span>維修工單分流 <span class="muted">/</span> <span id="breadcrumb">評分分析</span></span><span class="local-badge"><i></i> LOCAL WORKSPACE</span></header>
     <section id="page-evaluate" class="page">
-      <div class="page-heading"><div><div class="eyebrow">EVALUATION & INSIGHTS</div><h1>每一次調整，都有依據<span>。</span></h1><p>選擇資料與方法，自動產生預測、計算分數並整理錯題。</p></div><button id="baseline" class="button secondary">↗ 載入 Baseline 範例</button></div>
+      <div class="page-heading"><div><div class="eyebrow">EVALUATION & INSIGHTS</div><h1>每一次調整，都有依據<span>。</span></h1><p>選擇資料與方法，自動產生預測、計算分數並整理錯題。</p></div><div class="page-heading-actions"><button id="open-training" class="button primary" type="button">訓練模型</button><button id="baseline" class="button secondary">↗ 載入 Baseline 範例</button></div></div>
       <section class="panel setup experiment-setup" aria-label="自動預測設定">
         <div class="section-title"><span class="step">01</span><h2>執行預測與評分</h2><span class="tag">結果僅儲存於本機</span></div>
         <form id="experiment-form">
           <div class="experiment-grid">
             <div class="form-control"><label for="test-dataset">測試資料集</label><select id="test-dataset"><option value="dev">dev.jsonl · 驗證資料</option><option value="history" selected>history.jsonl · 開發資料</option><option value="tickets">tickets.jsonl · 無標準答案</option><option value="custom">自行選擇 JSONL…</option></select><input id="test-file" type="file" accept=".jsonl" hidden><label id="test-file-label" for="test-file" class="custom-file" hidden>選擇測試資料檔</label></div>
-            <div class="form-control"><label for="test-method">方法</label><select id="test-method"><option value="solution-a">方案 A · 完整規則</option><option value="baseline">Baseline · 原始規則</option><option value="tfidf-lr">方案 B · TF-IDF＋Logistic Regression</option><option value="tfidf-svc">方案 B · TF-IDF＋LinearSVC</option></select></div>
+            <div class="form-control"><label for="test-method">方法</label><select id="test-method"><option value="solution-a">方案 A · 完整規則</option><option value="baseline">Baseline · 原始規則</option><option value="tfidf-lr">方案 B · TF-IDF＋Logistic Regression</option><option value="tfidf-svc">方案 B · TF-IDF＋LinearSVC</option><option value="bge-lr">方案 C · BGE＋Logistic Regression</option><option value="bge-svc">方案 C · BGE＋LinearSVC</option><option value="bge-finetuned">方案 C · BGE 神經分類頭／聯合微調</option></select></div>
             <div class="form-control"><label for="test-limit">執行環境</label><select id="test-limit"><option value="native">本機 · 未限制記憶體</option><option value="2gb">2 GB · Docker 容器</option></select></div>
             <div class="form-control output-control"><label for="output-dir">預測檔輸出資料夾</label><input id="output-dir" value="Solution/predictions" placeholder="例如 Solution/predictions 或 /Users/你的帳號/測試結果" required><small>可填絕對路徑，或相對於專案根目錄的路徑；不存在時自動建立。</small></div>
+            <div class="form-control output-control"><label for="model-path">模型路徑（選填）</label><input id="model-path" placeholder="預設使用既有模型；也可由訓練紀錄選取"><small>聯合微調須選取本次模型資料夾；LR／SVC 可指定時間戳資料夾內的 .joblib。</small></div>
           </div>
           <div class="experiment-actions"><p class="naming-hint">檔名：<code>日期時間戳_資料集_方法_限制_得分.jsonl</code><br>使用台北時間，得分為 0～1；沒有標準答案時標記「未評分」。</p><button id="run-experiment" class="button primary" type="submit">執行預測與評分 <span>→</span></button></div>
-          <p id="limit-hint" class="chart-note" hidden>2 GB 模式需要已啟動 Docker，方案 A／Baseline 需 silab-fa:scheme-a 映像；TF-IDF 需先訓練模型並建置 silab-fa:scheme-b 映像；系統會確認記憶體與禁止 swap 的限制。</p>
+          <p id="limit-hint" class="chart-note" hidden>2 GB 模式需要已啟動 Docker，方案 A／Baseline 需 silab-fa:scheme-a 映像；TF-IDF 需先訓練模型並建置 silab-fa:scheme-b 映像；BGE 需 silab-fa:scheme-c 映像。系統會確認記憶體與禁止 swap 的限制。</p>
         </form>
       </section>
       <section class="panel setup" aria-label="評分設定">
@@ -65,6 +66,29 @@
     <footer>SILAB <span>/</span> 算法開發工作台 <span>·</span> 所有計算與查詢皆在本機執行</footer>
   </main>
   <dialog id="detail-dialog"><div class="detail-head"><div><span class="eyebrow">ERROR INSPECTION</span><h2 id="detail-title"></h2></div><button id="close-detail" class="close-button" aria-label="關閉詳情">×</button></div><div id="detail-content"></div></dialog>
+  <dialog id="training-dialog" aria-labelledby="training-title">
+    <div class="detail-head"><div><span class="eyebrow">LOCAL MODEL TRAINING</span><h2 id="training-title">訓練與比較模型</h2></div><button id="close-training" class="close-button" aria-label="關閉訓練視窗">×</button></div>
+    <p class="detail-note">只使用開發用 history。背景訓練在關閉視窗後仍會繼續；重新開啟可查看紀錄。本機 CPU 訓練，未套用 2 GB 限制。</p>
+    <form id="training-form">
+      <div class="training-grid">
+        <div class="form-control"><label for="training-kind">訓練方式</label><select id="training-kind"><option value="bge-finetune">BGE encoder＋分類頭聯合微調，與凍結版比較</option><option value="bge-frozen">既有凍結 BGE＋LR／SVC（四候選）</option><option value="tfidf">既有 TF-IDF＋LR／SVC（四候選）</option></select></div>
+        <div class="form-control"><label for="training-source">history 來源</label><select id="training-source"><option value="local">專案 data/history.jsonl</option><option value="upload">上傳 history JSONL…</option></select><input id="training-file" type="file" accept=".jsonl" hidden><label id="training-file-label" for="training-file" class="custom-file" hidden>選擇 history JSONL</label></div>
+        <div class="form-control output-control"><label for="training-output">模型與紀錄保存根目錄</label><input id="training-output" value="Solution/models/training-runs" required><small>自動建立「台北日期時間戳＋唯一編號」資料夾，保存資料快照、設定、紀錄與 models/，不覆寫舊模型。</small></div>
+      </div>
+      <fieldset id="finetune-settings"><legend>小資料保守設定</legend><div class="training-grid">
+        <div class="form-control"><label for="train-epochs">最多 epochs（1～10）</label><input id="train-epochs" type="number" min="1" max="10" value="5" required></div>
+        <div class="form-control"><label for="train-encoder-lr">Encoder 學習率</label><input id="train-encoder-lr" type="number" min="0.000001" max="0.00005" step="0.000001" value="0.00001" required></div>
+        <div class="form-control"><label for="train-head-lr">分類頭學習率</label><input id="train-head-lr" type="number" min="0.0001" max="0.01" step="0.0001" value="0.001" required></div>
+        <div class="form-control"><label for="train-decay">Weight decay</label><input id="train-decay" type="number" min="0.01" max="0.3" step="0.01" value="0.01" required></div>
+        <div class="form-control"><label for="train-dropout">分類頭 dropout</label><input id="train-dropout" type="number" min="0.1" max="0.5" step="0.05" value="0.2" required></div>
+        <div class="form-control"><label for="train-smoothing">Label smoothing</label><input id="train-smoothing" type="number" min="0" max="0.2" step="0.05" value="0.1" required></div>
+      </div><p class="detail-note">另固定 batch=8、512 tokens、seed=42、梯度裁切=1、10% warmup，驗證六類 F1 連續 2 epochs 未改善即停止，保留最佳 checkpoint。低學習率與正規化不能保證不過擬合；下方會保留訓練／驗證差距。比較用 checkpoint 不以完整 history 重訓。</p></fieldset>
+      <label class="training-attestation"><input id="training-history-only" type="checkbox" required>我確認來源是開發用 history，未包含 dev 或其他保留測試集。</label>
+      <div class="experiment-actions"><span class="detail-note">訓練不會自行連網下載模型；同時只允許一個訓練工作。</span><button id="start-training" type="submit" class="button primary">開始訓練與保存 →</button></div>
+    </form>
+    <div id="training-status" class="message" role="status" aria-live="polite" hidden></div>
+    <section class="training-history"><div class="section-title"><h3>訓練紀錄</h3><button id="refresh-training" class="button secondary small" type="button">重新整理</button></div><label for="training-jobs">選擇工作</label><select id="training-jobs" aria-label="選擇訓練紀錄"></select><div id="training-results" aria-live="polite"></div></section>
+  </dialog>
   <script src="/app.js" defer></script>
 </body>
 </html>

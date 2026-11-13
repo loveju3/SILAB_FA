@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="783" viewBox="0 0 780 783" role="img" aria-labelledby="title desc">
+<title id="title">BGE 聯合微調｜UI 訓練流程</title><desc id="desc">保留訓練／驗證差距、逐輪事件、來源與模型；關閉 modal 不停止訓練。</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#52667a"/></marker></defs>
+<rect width="780" height="783" rx="16" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Microsoft JhengHei, PingFang TC, sans-serif" text-anchor="middle" fill="#172b3a">
+<text x="390.0" y="40" font-size="24" font-weight="700">BGE 聯合微調｜UI 訓練流程</text>
+<rect x="70" y="75" width="640" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="109.0" font-size="19" fill="#172b3a">1. 在 modal 上傳 history，指定保存路徑</text>
+<text x="390.0" y="134.0" font-size="15" fill="#465a6b">保存時間戳資料夾、來源與完整設定；不使用 dev</text>
+<path d="M 390 151 V 178" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="70" y="183" width="640" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="217.0" font-size="19" fill="#172b3a">2. 按時間分割，排除跨集合的近似模板</text>
+<text x="390.0" y="242.0" font-size="15" fill="#465a6b">本次：200 筆訓練／90 筆驗證／10 筆排除</text>
+<path d="M 390 259 V 286" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="70" y="291" width="640" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="325.0" font-size="19" fill="#172b3a">3. 保留名稱，建立相同文字與訓練分割</text>
+<text x="390.0" y="350.0" font-size="15" fill="#465a6b">LR／SVC 凍結對照、凍結神經頭、聯合微調共用分割</text>
+<path d="M 390 367 V 394" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="70" y="399" width="640" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="433.0" font-size="19" fill="#172b3a">4. 只用訓練列更新各方法的參數</text>
+<text x="390.0" y="458.0" font-size="15" fill="#465a6b">聯合微調：分類 loss＋資訊 loss → 分類頭與 encoder</text>
+<path d="M 390 475 V 502" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="70" y="507" width="640" height="76" rx="12" fill="#edf6ff" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="541.0" font-size="19" fill="#172b3a">5. 每輪驗證，提早停止並保存最佳 epoch</text>
+<text x="390.0" y="566.0" font-size="15" fill="#465a6b">固定以六類 F1 選 epoch；同分保留較早 checkpoint</text>
+<path d="M 390 583 V 610" fill="none" stroke="#52667a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="70" y="615" width="640" height="76" rx="12" fill="#e8f5ef" stroke="#8aa6bf" stroke-width="1.5"/>
+<text x="390.0" y="649.0" font-size="19" fill="#172b3a">6. 保存比較結果與模型，按鈕帶入預測</text>
+<text x="390.0" y="674.0" font-size="15" fill="#465a6b">不以完整 history 重訓，不自動替換既有預設模型</text>
+<text x="390" y="763" font-size="14" fill="#172b3a">保留訓練／驗證差距、逐輪事件、來源與模型；關閉 modal 不停止訓練。</text>
+</g>
+</svg>

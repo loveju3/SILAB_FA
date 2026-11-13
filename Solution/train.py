@@ -19,32 +19,23 @@ from triage.pipeline import predict
 from triage.text import classification_text
 from training.data import history_split, load_history
 from training.linear import fit_bundle
+from training.evaluation import PROVENANCE, category_metrics
 
 sys.path.insert(0, str(ROOT))
 from baseline.evaluate import CATEGORIES, macro_f1
 from helper_tool.evaluate import analyze
 
 SOLUTION = Path(__file__).resolve().parent
-PROVENANCE = "訓練與選型僅使用 history；沿用 A 的正規化、別名、遮罩及其他規則曾受 dev 觀察影響，非全流程獨立未觀察 dev 的結果。"
-
-
-def category_metrics(gold, predictions):
-    pairs = [(g, p) for g, p in zip(gold, predictions) if g is not None]
-    _, five = macro_f1(pairs, CATEGORIES)
-    six_pairs = [(g or "unknown", p or "unknown") for g, p in zip(gold, predictions)]
-    classes, six = macro_f1(six_pairs, [*CATEGORIES, "unknown"])
-    return {"category_macro_f1": five, "six_class_macro_f1": six,
-            "unknown_precision": classes["unknown"][0], "unknown_recall": classes["unknown"][1],
-            "unknown_support": classes["unknown"][3]}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="僅讀 history；LR/SVC 與設備名稱遮罩四方案比較")
     parser.add_argument("--output-dir", type=Path, default=SOLUTION / "models")
     parser.add_argument("--report-dir", type=Path, default=SOLUTION / "reports/training")
+    parser.add_argument("--history", type=Path, default=ROOT / "data/history.jsonl", help="開發用 history.jsonl；不可使用 dev")
     args = parser.parse_args(argv)
     try:
-        history = ROOT / "data/history.jsonl"  # No arbitrary input/dev option.
+        history = args.history  # load_history rejects dev names and symlinks.
         tickets, gold = load_history(history)
         codes = load_json(ROOT / "data/error_codes.json")
         resolver = DeviceResolver(load_json(ROOT / "data/devices.json"), codes,

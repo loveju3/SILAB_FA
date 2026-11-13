@@ -156,6 +156,16 @@ class ExperimentTest(unittest.TestCase):
         self.assertIn("silab-fa:scheme-b", command)
         self.assertEqual(command[command.index("--method") + 1], "tfidf-svc")
 
+    def test_embedding_container_selects_c_image_and_method(self):
+        (self.root / "limits.json").write_text(json.dumps({
+            "memory.max": "2147483648", "memory.swap.max": "0", "exit_code": 0}))
+        with patch.object(experiments.shutil, "which", return_value="docker"), \
+             patch.object(experiments.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as process:
+            experiments.execute("bge-lr", "2gb", self.root)
+        command = process.call_args_list[0].args[0]
+        self.assertIn("silab-fa:scheme-c", command)
+        self.assertEqual(command[command.index("--method") + 1], "bge-lr")
+
     def test_file_label_cannot_escape_output_directory(self):
         payload = self.payload(dataset_name="../../不可執行;$(whoami).jsonl")
         result = experiments.run_experiment(payload, self.reports)
@@ -163,6 +173,31 @@ class ExperimentTest(unittest.TestCase):
         self.assertEqual(output.parent, self.output)
         self.assertNotIn("$", output.name)
         self.assertNotIn(";", output.name)
+
+
+class SavedModelPathTest(unittest.TestCase):
+    def test_saved_model_path_is_forwarded_without_shell(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            model = folder / 'saved model' / 'finetuned'
+            with patch.object(experiments.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as runner:
+                result = experiments.execute('bge-finetuned', 'native', folder, model)
+            command = runner.call_args.args[0]
+            self.assertEqual(command[command.index('--model-path') + 1], str(model))
+            self.assertEqual(result['model_path'], str(model))
+            self.assertNotIn('shell', runner.call_args.kwargs)
+
+    def test_container_mounts_saved_checkpoint_readonly(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            model = folder / 'saved model' / 'finetuned'
+            (folder / 'limits.json').write_text(json.dumps({'memory.max':'2147483648','memory.swap.max':'0','exit_code':0}))
+            with patch.object(experiments.shutil, 'which', return_value='docker'), \
+                 patch.object(experiments.subprocess, 'run', return_value=subprocess.CompletedProcess([],0,'','')) as runner:
+                experiments.execute('bge-finetuned', '2gb', folder, model)
+            command = runner.call_args_list[0].args[0]
+            self.assertIn(f'type=bind,src={model.parent},dst=/models,readonly',command)
+            self.assertEqual(command[command.index('--model-path') + 1], '/models/finetuned')
 
 
 if __name__ == "__main__":

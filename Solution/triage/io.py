@@ -1,5 +1,6 @@
 """Filesystem boundary: project only the four allowed input fields."""
 import json
+import hashlib
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,6 +9,14 @@ import tempfile
 from .contracts import Ticket
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def read_tickets(path: Path) -> list[Ticket]:
