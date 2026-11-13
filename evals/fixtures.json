@@ -1,0 +1,27 @@
+{
+  "provenance": "Hand-authored synthetic tickets, unrelated to dev/history/tickets. Public table questions use devices/error_codes only.",
+  "tickets": [
+    {"ticket_id":"SYN001","created_at":"2026-09-30T23:59:59Z","reporter":"測試甲","raw_text":"空壓機運轉時有異音"},
+    {"ticket_id":"SYN002","created_at":"2026-10-01T00:00:00Z","reporter":"測試乙","raw_text":"AC-75 面板顯示 E-01"},
+    {"ticket_id":"SYN003","created_at":"2026-10-01T08:00:00+08:00","reporter":"測試乙","raw_text":"UPS 面板不亮"},
+    {"ticket_id":"SYN004","created_at":"2026-10-02T00:00:00Z","reporter":"測試甲","raw_text":"循環泵浦出現漏水"},
+    {"ticket_id":"SYN005","created_at":"2026-10-13T09:00:00Z","reporter":"測試乙","raw_text":"貨梯門關不上，現場有人受困，請處理"},
+    {"ticket_id":"SYN006","created_at":"2026-10-14T10:00:00Z","reporter":"測試丙","raw_text":"D01 又有異音，機殼冒煙，請通知維修"},
+    {"ticket_id":"SYN007","created_at":"2026-10-14T11:00:00Z","reporter":"測試丁","raw_text":"冰水主機外殼出現短路火花，請確認現場安全"},
+    {"ticket_id":"SYN008","created_at":"2026-10-14T12:00:00Z","reporter":"測試乙","raw_text":"飲水機的濾心到期，請安排更換"}
+  ],
+  "cases": [
+    {"id":"public-location","question":"B1 動力室有哪些設備？請回設備編號清單。","answer":["D01","D06"]},
+    {"id":"public-name","question":"D11 的設備名稱是什麼？","answer":"飲水機"},
+    {"id":"public-model","question":"D01 的型號是什麼？只回單一型號。","answer":"AC-75"},
+    {"id":"public-code","question":"錯誤碼 E-01 屬於哪個類別？","answer":"temperature"},
+    {"id":"public-code-variant","question":"錯誤碼 e_03 的意思是什麼？","answer":"冷媒低壓警報"},
+    {"id":"public-empty","question":"月球機房有哪些設備？回設備編號清單。","answer":[]},
+    {"id":"count-all","question":"總共有幾張工單？","answer":8},
+    {"id":"utc-inclusive","question":"2026-10-01 之後有幾張工單？含當日零點。","answer":7},
+    {"id":"top-reporter","question":"哪位回報人的報修工單最多？","answer":"測試乙"},
+    {"id":"reporter-count","question":"測試乙回報了幾張工單？","answer":4},
+    {"id":"literal-device","question":"原文寫出空壓機、D01 或 AC-75 的工單共有幾張？","answer":3},
+    {"id":"ticket-empty","question":"原文包含隕石的工單共有幾張？","answer":0}
+  ]
+}

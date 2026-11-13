@@ -2,6 +2,8 @@
 
 目前包含方案 A 規則版、方案 B 字元 TF-IDF、方案 C 固定 BGE encoder（B/C 均提供 LR 與 LinearSVC）、評分／查詢 UI、測試、流程圖及彙總效能說明。
 
+第二部分新增獨立的 [離線智慧問答 Agent 初版](agent/README.md)：`ask.py` 模型選擇工具與停止時機、`patrol.py` 候選巡檢及 `evals/` 開發評測。使用本機 Qwen3-1.7B Q4 與 CPU llama.cpp；支援範圍、限制及實測須與第一部分分類成績分開看待。
+
 工作台另提供訓練 modal：上傳 history、指定模型保存路徑、執行 BGE encoder＋分類頭聯合微調及凍結對照，並保存逐輪紀錄與時間戳模型。操作與限制見 [UI 訓練文件](Solution/docs/BGE聯合微調與UI訓練.md)。
 
 **重要開發規則：不得觀察 `dev.jsonl` 的資料來設計算法；dev 僅供固定版本驗證。** 開發與調參使用 history，完整規範見 [AGENTS.md](AGENTS.md)。既有方案 A 曾參考 dev，其成績只作歷史開發驗證紀錄。

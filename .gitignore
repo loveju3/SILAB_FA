@@ -9,3 +9,7 @@ __pycache__/
 reports/
 /Solution/predictions/
 /Solution/experiments/*.json
+
+# Local Agent weights, runtime binaries and evaluation output.
+/agent_assets/
+/evals/results/

@@ -4,3 +4,5 @@
 **/reports
 **/predictions
 **/experiments/runs
+agent_assets/
+evals/results/
