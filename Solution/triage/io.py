@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
+from time import sleep
 
 from .contracts import Ticket
 
@@ -48,8 +49,14 @@ def read_tickets(path: Path) -> list[Ticket]:
 
 
 def load_json(path: Path):
-    with path.open(encoding="utf-8") as stream:
-        return json.load(stream)
+    for attempt in range(8):
+        try:
+            with path.open(encoding="utf-8") as stream:
+                return json.load(stream)
+        except PermissionError:
+            if os.name != 'nt' or attempt == 7:
+                raise
+            sleep(.01 * 2**attempt)
 
 
 def atomic_write(path: Path, text: str) -> None:
@@ -61,7 +68,16 @@ def atomic_write(path: Path, text: str) -> None:
                                          delete=False) as stream:
             temp_path = Path(stream.name)
             stream.write(text)
-        os.replace(temp_path, path)
+        for attempt in range(8):
+            try:
+                os.replace(temp_path, path)
+                break
+            except PermissionError:
+                # Windows readers and antivirus scans may briefly deny replace.
+                # Keep the previous complete JSON visible while retrying.
+                if os.name != 'nt' or attempt == 7:
+                    raise
+                sleep(.01 * 2**attempt)
     finally:
         if temp_path is not None:
             temp_path.unlink(missing_ok=True)

@@ -1,0 +1,2 @@
+# Optional client dependency; install into the same environment as the UI worker.
+modal==1.6.4

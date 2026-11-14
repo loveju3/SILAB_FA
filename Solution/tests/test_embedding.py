@@ -95,7 +95,12 @@ class RealEncoderTest(unittest.TestCase):
             before = BgeClassifier(bundle, {}, encoder, batch_size=3)
             with tempfile.TemporaryDirectory() as temporary:
                 folder = Path(temporary)
-                (folder / directory.name).symlink_to(directory, target_is_directory=True)
+                import os
+                if os.name == 'nt':
+                    import shutil
+                    shutil.copytree(directory, folder / directory.name, ignore=shutil.ignore_patterns('.cache'))
+                else:
+                    (folder / directory.name).symlink_to(directory, target_is_directory=True)
                 path = folder / "bge-lr.joblib"
                 save_model(path, bundle, {"method": "bge-lr", "encoder": encoder.manifest})
                 loaded, _ = BgeClassifier.load(path, {}, "bge-lr")

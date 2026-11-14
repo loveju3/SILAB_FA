@@ -1,5 +1,7 @@
 # 開發輔助工具
 
+第一次使用請先依循根目錄的 [環境建立文件 `docs/setup/`](../docs/setup/README.md)，選擇 macOS、Windows／WSL 或 Windows 原生 Agent 的準備方式。本頁以 UI 功能與操作為主；環境建立以該目錄為統一入口。
+
 **資料使用規則：** dev 僅供固定版本驗證，不得觀察 dev 原文、標籤或逐筆錯題來設計／調整算法。工具保留 dev 評分與報告功能，開發時的錯誤分析請使用 history。完整規範見 [AGENTS.md](../AGENTS.md)。
 
 評分、查詢與方案 A 只需 Python 3，沒有第三方套件。方案 B 的 TF-IDF 與方案 C 的 BGE 方法另需各自依賴與 history 訓練模型。以下指令從專案根目錄執行；工具也能從其他目錄以絕對路徑執行。使用者提供的命令列檔案路徑相對於執行目錄，UI 輸出與預設資料路徑則固定相對於專案根目錄。
@@ -43,32 +45,11 @@
 
 含標準答案的資料每筆須有 `device_id/category/urgency/duplicate_of` 四欄，系統自動評分。完全沒有標籤時，檔名最後為 `未評分`，只呈現預測、不計分也不標示對錯；混合缺漏的標籤會報錯，不把部分資料當成完整評測。算法本身仍只接收四個輸入欄位。
 
-方案 A／Baseline 的 2 GB 模式需預先啟動 Docker，並從專案根目錄執行一次：
-
-```bash
-docker build -f Solution/Dockerfile -t silab-fa:scheme-a .
-```
-
-TF-IDF 兩種方法需先在本機準備：
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r Solution/requirements-ml.txt
-.venv/bin/python Solution/train.py
-# 要跑 TF-IDF 的 2 GB 模式才需要建置：
-docker build -f Solution/Dockerfile.ml -t silab-fa:scheme-b .
-```
+方案 A／Baseline 的 2 GB 映像，以及 TF-IDF 兩種方法的套件、history 訓練模型與 Docker 映像，統一依 [CPU 模型與 Docker 環境](../docs/setup/cpu-models.md) 準備。
 
 UI 執行本機 TF-IDF 時優先選專案 .venv，A／Baseline 使用原本的 Python。方法名稱會進入檔名（tfidf-lr／tfidf-svc）；不會自動切換分類器或偷偷訓練模型。模型、.venv、預測與報告不加入 Git。詳見 [TF-IDF 設計與比較](../Solution/docs/TF-IDF實作與比較.md)。
 
-方案 C 另外執行以下步驟，下載只發生於事前安裝，推論不連網：
-
-```bash
-.venv/bin/python -m pip install -r Solution/requirements-embedding.txt
-.venv/bin/python Solution/scripts/download_encoder.py
-.venv/bin/python Solution/train_embedding.py
-docker build -f Solution/Dockerfile.embedding -t silab-fa:scheme-c .
-```
+方案 C 的 BGE 套件、公開 encoder、分類頭與 Docker 映像也依同一份 [CPU 模型與 Docker 環境](../docs/setup/cpu-models.md) 準備；下載只發生於事前安裝，推論不連網。
 
 UI 提供 bge-lr／bge-svc，2 GB 會選擇 scheme-c，依舊驗證實際記憶體與 swap 限制。模型以完整 history 重訓；UI 選 history 是訓練資料回測，不等於 history 後段 90 筆的內部驗證。C 的每筆延遲包含完整共享批次服務時間，不與 B 的單筆獨立推論延遲直接比較。詳見 [BGE 方案 C](../Solution/docs/BGE方案C方法與實驗.md)。
 
@@ -152,17 +133,19 @@ python3 -m unittest discover -s helper_tool -p 'test_*.py' -v
 
 ## 從網頁訓練模型
 
-按工作台右上角「訓練模型」開啟 modal，可選用專案 history 或上傳 history JSONL、設定保存根目錄與有限範圍的微調參數。預設比較凍結 BGE＋LR／SVC、凍結神經頭、以及 **encoder＋分類頭聯合微調**。既有 TF-IDF 與凍結 BGE 四候選也可從同一個視窗觸發。
+Modal 初次使用請依 [Modal 微調設定與操作](../Solution/docs/Modal微調設定與操作.md) 完成帳號、登入與 `Solution/config/modal_finetune.json` 設定。
 
-訓練使用 `.venv` 的背景程序，和 UI 請求分開；關閉 modal／重新整理頁面不會停止訓練。依跨程序鎖，同專案一次只允許一個訓練。來源快照、設定、程式快照、log、逐 epoch 指標及模型保存於「指定根目錄／台北日期時間戳＋唯一編號」，索引保存於 `helper_tool/reports/training/`。UI 顯示最近 50 筆，舊資料不自動刪除。自訂的工作資料夾也會有 `.gitignore`，避免模型與原始資料誤入 Git。
+從側欄「模型訓練」進入獨立訓練頁，或按評分頁右上角「訓練模型」，可選用專案 history 或上傳 history JSONL、設定保存根目錄與有限範圍的微調參數。預設比較凍結 BGE＋LR／SVC、凍結神經頭、以及 **encoder＋分類頭聯合微調**。既有 TF-IDF 與凍結 BGE 四候選也可從同一頁觸發。
+
+訓練使用背景程序，和 UI 請求分開；切換頁面／重新整理不會停止訓練。Linux 使用 `.venv/bin/python`；Windows 優先使用 `.venv/Scripts/python.exe`，其次使用 `helper_tool/reports/training-runtime/Scripts/python.exe`，否則使用啟動 UI 的 Python。依跨程序鎖，同專案一次只允許一個訓練。來源快照、設定、程式快照、log、逐 epoch 指標及模型保存於「指定根目錄／台北日期時間戳＋唯一編號」，索引保存於 `helper_tool/reports/training/`。UI 顯示最近 50 筆，舊資料不自動刪除。自訂的工作資料夾也會有 `.gitignore`，避免模型與原始資料誤入 Git。
 
 預設 encoder lr=1e-5、head lr=1e-3、最多 5 epochs、dropout=0.2、label smoothing=0.1、weight decay=0.01，驗證六類 F1 連續兩輪未改善即停止。這些只是降低小資料過擬合風險的起點，不能保證泛化。訓練與驗證指標並列保留；模型不自動取代預設版本。
 
-成功後按「帶入預測」，填入該次模型路徑；也可手動填入。神經模型使用 `bge-finetuned` 方法及模型資料夾，LR／SVC 使用對應方法與 `.joblib`。訓練本身在本機 CPU 執行，**沒有 2 GB 上限**；推論可另外選 2 GB 並讀取指定模型。仍須事先安裝依賴、下載公開 BGE 權重及建置所需 Docker 映像。
+成功後按「帶入預測」，填入該次模型路徑；也可手動填入。神經模型使用 `bge-finetuned` 方法及模型資料夾，LR／SVC 使用對應方法與 `.joblib`。訓練可選 CPU、本機 CUDA GPU 或 Modal T4 GPU，**沒有 2 GB 上限**；推論可另外選 2 GB 並讀取指定模型。仍須事先安裝依賴、下載公開 BGE 權重及建置所需 Docker 映像。
 
 訓練 API 為 `POST /api/training`，查詢為 `GET /api/training` 及 `GET /api/training?id=工作ID`，皆受原有 localhost／Origin 檢查保護。API 不接受 dev 作為訓練來源；上傳前須確認資料是 history。檔名檢查不能識別改名的 dev，資料使用仍須遵守專案規範。
 
-完整設定、比較分數、模型格式與保存結構見 [BGE 聯合微調與 UI 訓練](../Solution/docs/BGE聯合微調與UI訓練.md)。
+CPU／GPU／Modal 設定、進度與指標說明見 [訓練頁與運算環境](../Solution/docs/訓練頁與運算環境.md)。完整設定、比較分數、模型格式與保存結構見 [BGE 聯合微調與 UI 訓練](../Solution/docs/BGE聯合微調與UI訓練.md)。
 
 ## 第二階段 Agent 評測 UI
 

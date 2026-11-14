@@ -1,6 +1,9 @@
 """Conservative, bounded settings shared by the UI and offline training worker."""
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 import math
+import json
+from pathlib import Path
+import re
 
 
 @dataclass(frozen=True)
@@ -33,4 +36,38 @@ class FineTuneSettings:
                 raise ValueError(f"{name} 必須為整數")
         if type(result.max_length) is not int or result.max_length != 512:
             raise ValueError("比較固定使用 max_length=512，以維持相同文字範圍")
+        return result
+
+
+@dataclass(frozen=True)
+class ModalSettings:
+    """Public cloud resources only; credentials remain managed by the Modal SDK."""
+    app_name: str
+    gpu: str
+    cpu: int
+    memory_mb: int
+    timeout_seconds: int
+
+    @classmethod
+    def load(cls, path=None):
+        path = Path(path) if path is not None else Path(__file__).resolve().parents[1] / 'config/modal_finetune.json'
+        try:
+            values = json.loads(path.read_text(encoding='utf-8-sig'))
+        except (OSError, ValueError) as exc:
+            raise ValueError(f'Modal 設定檔無法讀取：{path}；請確認檔案存在且為合法 JSON') from exc
+        return cls.from_dict(values)
+
+    @classmethod
+    def from_dict(cls, values):
+        if not isinstance(values, dict) or set(values) != {field.name for field in fields(cls)}:
+            raise ValueError('Modal 設定僅接受 app_name、gpu、cpu、memory_mb、timeout_seconds，且每項皆必填；不要填入 token')
+        result = cls(**values)
+        if not isinstance(result.app_name, str) or not re.fullmatch(r'[a-z][a-z0-9-]{2,62}', result.app_name):
+            raise ValueError('Modal app_name 須為 3～63 字的小寫英文、數字或連字號，並以英文開頭')
+        if result.gpu not in ('T4', 'L4', 'A10', 'L40S', 'A100-40GB', 'A100-80GB'):
+            raise ValueError('Modal gpu 請選 T4、L4、A10、L40S、A100-40GB 或 A100-80GB')
+        for name, low, high in (('cpu', 1, 8), ('memory_mb', 1024, 65536), ('timeout_seconds', 60, 14400)):
+            value = getattr(result, name)
+            if type(value) is not int or not low <= value <= high:
+                raise ValueError(f'Modal {name} 須為 {low}～{high} 的整數')
         return result

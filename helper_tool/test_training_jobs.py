@@ -1,11 +1,11 @@
 """Training API contracts; synthetic uploads only, no model training in job tests."""
-import fcntl
 import json
 import os
 from pathlib import Path
 import subprocess
 import tempfile
 import time
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -48,7 +48,7 @@ class TrainingJobsTest(unittest.TestCase):
         self.registry.mkdir()
         fd = os.open(self.registry / '.training.lock', os.O_CREAT | os.O_RDWR, 0o600)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            jobs.acquire_lock(fd)
             with self.assertRaisesRegex(ValueError, '已有訓練'):
                 jobs.start_job(self.payload)
         finally:
@@ -74,9 +74,9 @@ class TrainingJobsTest(unittest.TestCase):
     def test_abrupt_worker_exit_is_visible_and_retains_log(self):
         real_popen = subprocess.Popen
         with patch.object(jobs.subprocess, 'Popen', side_effect=lambda command, **kwargs: real_popen(
-                [str(jobs.ROOT / '.venv/bin/python'), '-c', 'raise SystemExit(7)'], **kwargs)):
+                [sys.executable, '-c', 'raise SystemExit(7)'], **kwargs)):
             entry = jobs.start_job(self.payload)
-        for _ in range(50):
+        for _ in range(150):
             entry = jobs.get_job(entry['job_id'])
             if entry['state'] == 'failed':
                 break
@@ -84,6 +84,37 @@ class TrainingJobsTest(unittest.TestCase):
         self.assertEqual(entry['state'], 'failed')
         self.assertIn('7', entry['message'])
         self.assertTrue((Path(entry['directory']) / 'worker.log').exists())
+
+    def test_backend_validation_and_cloud_consent(self):
+        for changes in ({'backend': 'invalid'}, {'backend': 'gpu'}, {'backend': 'modal'},
+                        {'kind': 'bge-finetune', 'backend': 'modal', 'cloud_upload_confirmed': False}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                jobs.start_job({**self.payload, **changes})
+        self.assertEqual(jobs.list_jobs(), [])
+
+    def test_modal_resources_are_frozen_in_job_config(self):
+        resources = jobs.ModalSettings('test-training', 'L4', 1, 4096, 600)
+        with patch.object(jobs.ModalSettings, 'load', return_value=resources), \
+             patch.object(jobs.subprocess, 'Popen', side_effect=OSError('synthetic failure')):
+            with self.assertRaises(OSError):
+                jobs.start_job({**self.payload, 'kind': 'bge-finetune', 'backend': 'modal',
+                                'cloud_upload_confirmed': True})
+        job = jobs.list_jobs()[0]
+        self.assertEqual(job['config']['modal_settings']['gpu'], 'L4')
+        self.assertEqual(job['config']['modal_settings']['timeout_seconds'], 600)
+        self.assertTrue((Path(job['directory']) / 'source/Solution/config/modal_finetune.json').is_file())
+
+    def test_batch_events_do_not_evict_epoch_metrics(self):
+        with patch.object(jobs.subprocess, 'Popen', side_effect=OSError('synthetic failure')):
+            with self.assertRaises(OSError):
+                jobs.start_job(self.payload)
+        job = jobs.list_jobs()[0]
+        folder = Path(job['directory'])
+        events = [{'event': 'epoch', 'epoch': 1, 'validation': {'six_class_macro_f1': .5}}]
+        events += [{'event': 'batch', 'completed': n} for n in range(100)]
+        (folder / 'events.jsonl').write_text('\n'.join(json.dumps(e) for e in events) + '\n', encoding='utf-8')
+        loaded = jobs.get_job(job['job_id'])
+        self.assertEqual([e['event'] for e in loaded['events']], ['epoch'])
 
 
 if __name__ == '__main__':

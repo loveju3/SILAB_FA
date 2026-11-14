@@ -11,7 +11,7 @@ from .io import file_sha256
 
 
 class BgeEncoder:
-    def __init__(self, directory: Path, *, threads=2, max_length=512):
+    def __init__(self, directory: Path, *, threads=2, max_length=512, device="cpu"):
         if threads < 1 or not 1 <= max_length <= 512:
             raise ValueError("encoder 執行緒或長度設定不合法")
         self.directory = directory
@@ -29,7 +29,9 @@ class BgeEncoder:
         self.tokenizer = AutoTokenizer.from_pretrained(directory, local_files_only=True, trust_remote_code=False)
         self.model = AutoModel.from_pretrained(directory, local_files_only=True, trust_remote_code=False,
                                               use_safetensors=True, attn_implementation="eager")
-        self.model.to("cpu").eval().requires_grad_(False)
+        if device not in ("cpu", "cuda") or (device == "cuda" and not torch.cuda.is_available()):
+            raise ValueError("要求的 CUDA GPU 不可用；請安裝 CUDA 版 PyTorch 或選擇 CPU")
+        self.model.to(device).eval().requires_grad_(False)
         self.dimension = self.model.config.hidden_size
 
     def transform(self, texts: list[str]):
@@ -39,6 +41,7 @@ class BgeEncoder:
             return np.empty((0, self.dimension), dtype=np.float32)
         inputs = self.tokenizer(texts, padding=True, truncation=True, max_length=self.max_length,
                                 return_tensors="pt")
+        inputs = {key: value.to(next(self.model.parameters()).device) for key, value in inputs.items()}
         with self.torch.inference_mode():
             embeddings = self.model(**inputs).last_hidden_state[:, 0]
             embeddings = self.torch.nn.functional.normalize(embeddings, p=2, dim=1)

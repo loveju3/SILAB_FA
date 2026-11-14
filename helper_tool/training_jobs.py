@@ -1,7 +1,6 @@
 """Persistent local training jobs; UI requests never execute model code inline."""
 from dataclasses import asdict
 from datetime import datetime, timezone, timedelta
-import fcntl
 import json
 import os
 from pathlib import Path
@@ -10,15 +9,33 @@ import subprocess
 import threading
 from time import perf_counter
 import shutil
+import sys
 
 from .common import ROOT
-from Solution.training.settings import FineTuneSettings
-from Solution.triage.io import atomic_write, read_tickets
+from .agent_jobs import alive
+from Solution.training.settings import FineTuneSettings, ModalSettings
+from Solution.triage.io import atomic_write, read_tickets, load_json
 
 REGISTRY = ROOT / "helper_tool/reports/training"
 DEFAULT_OUTPUT = ROOT / "Solution/models/training-runs"
 KINDS = {"bge-finetune", "bge-frozen", "tfidf"}
 TERMINAL = {"succeeded", "failed", "interrupted"}
+
+
+def acquire_lock(fd):
+    if os.name == 'nt':
+        import msvcrt
+        os.lseek(fd, 0, os.SEEK_SET)
+        if os.fstat(fd).st_size == 0:
+            os.write(fd, b'0')
+        os.lseek(fd, 0, os.SEEK_SET)
+        try:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        except OSError as exc:
+            raise BlockingIOError from exc
+    else:
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
 def write_json(path, value):
@@ -29,38 +46,40 @@ def _entry(job_id):
     if not re.fullmatch(r'\d{8}-\d{6}-\d{6}-[a-f0-9]{8}', job_id):
         raise ValueError("訓練工作 ID 不合法")
     registry_file = REGISTRY / f"{job_id}.json"
-    return json.loads(registry_file.read_text(encoding="utf-8"))
+    return load_json(registry_file)
 
 
 def get_job(job_id):
     entry = _entry(job_id)
     directory = Path(entry["directory"])
-    status = json.loads((directory / "status.json").read_text(encoding="utf-8"))
+    status = load_json(directory / 'status.json')
     # A worker survives normal UI restarts. Detect abrupt termination without
     # treating stale status files as successful training results.
     pid = status.get("pid") or entry.get("pid")
     if status["state"] not in TERMINAL and pid:
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
+        if not alive(pid):
             status.update(state="interrupted", message="訓練程序已停止；保留原有紀錄，請建立新工作重試")
-            write_json(directory / "status.json", status)
-    config = json.loads((directory / "config.json").read_text(encoding="utf-8"))
+            # This is a read-time observation only. Persisting it can overwrite
+            # a terminal status concurrently being saved by the watcher.
+    config = load_json(directory / 'config.json')
     result = {**entry, **status, "config": config, "events": []}
     events = directory / "events.jsonl"
     if events.exists():
         content = events.read_text(encoding="utf-8")
         lines = content.splitlines()
         # The writer may be appending its last line while this request reads.
-        for index, line in enumerate(lines[-80:]):
+        for index, line in enumerate(lines):
             try:
-                result["events"].append(json.loads(line))
+                record = json.loads(line)
+                if record.get('event') != 'batch':
+                    result["events"].append(record)
             except json.JSONDecodeError:
-                if index != len(lines[-80:]) - 1 or content.endswith('\n'):
+                if index != len(lines) - 1 or content.endswith('\n'):
                     raise ValueError("訓練事件紀錄格式損壞，請檢查 events.jsonl")
+        result['events'] = result['events'][-80:]
     comparison = directory / "models/comparison.json"
     if comparison.exists():
-        result["comparison"] = json.loads(comparison.read_text(encoding="utf-8"))
+        result["comparison"] = load_json(comparison)
     result["elapsed_seconds"] = max(0, (datetime.now(timezone.utc) - datetime.fromisoformat(config["created_at"])).total_seconds()) if status["state"] not in TERMINAL else status.get("total_seconds")
     return result
 
@@ -75,9 +94,17 @@ def start_job(payload):
     kind = payload.get("kind", "bge-finetune")
     if kind not in KINDS:
         raise ValueError("不支援的訓練方式")
+    backend = payload.get("backend", "cpu")
+    if backend not in ("cpu", "gpu", "modal"):
+        raise ValueError("請選擇 CPU、GPU 或 Modal")
+    if backend != "cpu" and kind != "bge-finetune":
+        raise ValueError("GPU／Modal 目前支援 BGE 聯合微調比較；既有 sklearn 訓練請選 CPU")
+    if backend == "modal" and payload.get("cloud_upload_confirmed") is not True:
+        raise ValueError("請確認允許將本次 history 上傳 Modal 執行訓練（可能產生費用）")
     if payload.get("history_only") is not True:
         raise ValueError("請確認資料為開發用 history，未包含 dev 或其他保留測試集")
     settings = FineTuneSettings.from_dict(payload.get("settings"))
+    modal_settings = asdict(ModalSettings.load()) if backend == 'modal' else None
     source = payload.get("source", "local")
     if source not in ("local", "upload"):
         raise ValueError("請選擇本機 history 或上傳 history")
@@ -96,7 +123,10 @@ def start_job(payload):
         raise ValueError("請指定模型保存資料夾")
     output = Path(output_value.strip()).expanduser()
     output = (output if output.is_absolute() else ROOT / output).resolve()
-    python = ROOT / ".venv/bin/python"
+    python = (ROOT / '.venv/Scripts/python.exe') if os.name == 'nt' else ROOT / '.venv/bin/python'
+    if os.name == 'nt' and not python.is_file():
+        runtime = ROOT / 'helper_tool/reports/training-runtime/Scripts/python.exe'
+        python = runtime if runtime.is_file() else Path(sys.executable)
     if not python.is_file():
         raise ValueError("請先建立專案 .venv 並安裝模型訓練依賴")
     if kind.startswith('bge') and not (ROOT / 'Solution/models/bge-small-zh-v1.5/encoder_manifest.json').is_file():
@@ -105,9 +135,13 @@ def start_job(payload):
     lock_fd = os.open(REGISTRY / '.training.lock', os.O_CREAT | os.O_RDWR, 0o600)
     try:
         try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            acquire_lock(lock_fd)
         except BlockingIOError as exc:
             raise ValueError("已有訓練工作進行中，請等待完成；避免多個訓練互相爭用記憶體") from exc
+        # POSIX workers inherit flock. Windows serializes startup here, then
+        # checks persisted live workers under this same lock on every request.
+        if os.name == 'nt' and any(job['state'] not in TERMINAL for job in list_jobs()):
+            raise ValueError("已有訓練工作進行中，請等待完成")
         output.mkdir(parents=True, exist_ok=True)
         job_id = datetime.now(timezone(timedelta(hours=8))).strftime('%Y%m%d-%H%M%S-%f-') + uuid.uuid4().hex[:8]
         directory = output / job_id
@@ -128,18 +162,23 @@ def start_job(payload):
             # Invalid uploads are not training runs, and should leave no model folder.
             shutil.rmtree(directory)
             raise
-        config = {"job_id": job_id, "kind": kind, "source": source, "source_name": Path(label.replace('\\','/')).name,
+        config = {"job_id": job_id, "kind": kind, "backend": backend,
+                  "python_executable": str(python),
+                  "cloud_upload_confirmed": backend == "modal" and payload.get("cloud_upload_confirmed") is True,
+                  "source": source, "source_name": Path(label.replace('\\','/')).name,
                   "history_only_confirmed": True, "created_at": datetime.now(timezone.utc).isoformat(),
                   "settings": asdict(settings), "count": len(tickets), "output_dir": str(directory),
                   "note": "Uploaded history is user-attested; file names cannot prove data provenance."}
+        if modal_settings is not None:
+            config['modal_settings'] = modal_settings
         write_json(directory / 'config.json', config)
         # Snapshot code/config, never the data tree, so uncommitted training runs
         # remain reviewable even after the working copy changes.
         snapshot = directory / 'source'
         for relative in ('Solution/triage', 'Solution/training', 'Solution/config'):
             shutil.copytree(ROOT / relative, snapshot / relative, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-        for relative in ('Solution/train.py', 'Solution/train_embedding.py', 'Solution/train_finetune.py',
-                         'Solution/requirements-ml.txt', 'Solution/requirements-embedding.txt',
+        for relative in ('Solution/train.py', 'Solution/train_embedding.py', 'Solution/train_finetune.py', 'Solution/modal_training.py',
+                         'Solution/requirements-ml.txt', 'Solution/requirements-embedding.txt', 'Solution/requirements-modal.txt',
                          'helper_tool/training_jobs.py', 'helper_tool/evaluate.py', 'helper_tool/common.py', 'baseline/evaluate.py',
                          'data/devices.json', 'data/error_codes.json'):
             target = snapshot / relative
@@ -148,13 +187,17 @@ def start_job(payload):
         write_json(directory / 'status.json', {"state": "queued", "message": "等待啟動訓練", "pid": None})
         write_json(REGISTRY / f'{job_id}.json', {"job_id": job_id, "directory": str(directory)})
         environment = {**os.environ, "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1",
-                       "TOKENIZERS_PARALLELISM": "false", "OMP_NUM_THREADS": "2", "OPENBLAS_NUM_THREADS": "2"}
-        command = [str(python), '-u', str(ROOT / 'Solution/train_finetune.py'), '--run-dir', str(directory), '--lock-fd', str(lock_fd)]
+                       "PYTHONUTF8": "1",
+                       "TOKENIZERS_PARALLELISM": "false", "OMP_NUM_THREADS": "2", "OPENBLAS_NUM_THREADS": "2",
+                       "CUBLAS_WORKSPACE_CONFIG": ":4096:8"}
+        command = [str(python), '-u', str(ROOT / 'Solution/train_finetune.py'), '--run-dir', str(directory),
+                   '--lock-fd', str(lock_fd if os.name != 'nt' else -1)]
         started = perf_counter()
         try:
             with (directory / 'worker.log').open('w', encoding='utf-8') as log:
-                process = subprocess.Popen(command, cwd=ROOT, env=environment, stdout=log, stderr=subprocess.STDOUT,
-                                           pass_fds=(lock_fd,), start_new_session=True)
+                options = ({'pass_fds': (lock_fd,), 'start_new_session': True} if os.name != 'nt'
+                           else {'creationflags': subprocess.CREATE_NO_WINDOW})
+                process = subprocess.Popen(command, cwd=ROOT, env=environment, stdout=log, stderr=subprocess.STDOUT, **options)
         except OSError as exc:
             write_json(directory / 'status.json', {"state": "failed", "message": str(exc), "pid": None, "total_seconds": 0})
             raise
@@ -162,11 +205,14 @@ def start_job(payload):
         def watch():
             code = process.wait()
             status_path = directory / 'status.json'
-            status = json.loads(status_path.read_text(encoding='utf-8'))
-            if status['state'] not in TERMINAL:
+            status = load_json(status_path)
+            if status['state'] not in TERMINAL or status['state'] == 'interrupted':
                 write_json(status_path, {**status, "state": "failed", "message": f"訓練程序退出 {code}，詳見 worker.log", "total_seconds": perf_counter() - started})
         threading.Thread(target=watch, daemon=True).start()
     finally:
         # Do not LOCK_UN here: the worker inherits and owns the same file lock.
         os.close(lock_fd)
-    return get_job(job_id)
+    # Do not read hot worker files in the creation response: a transient read
+    # failure must not report a failed POST after a job has actually started.
+    return {'job_id': job_id, 'directory': str(directory), 'pid': process.pid,
+            'state': 'queued', 'message': '已建立背景訓練工作', 'config': config, 'events': []}

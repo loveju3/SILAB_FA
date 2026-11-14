@@ -12,6 +12,40 @@ sys.path.insert(0, str(SOLUTION))
 
 @unittest.skipUnless(importlib.util.find_spec('torch'), '需 embedding 依賴')
 class NeuralTrainingTest(unittest.TestCase):
+    def test_joint_training_updates_encoder_and_emits_real_batch_progress(self):
+        import numpy as np
+        import torch
+        from training.finetuning import train_neural
+        from training.settings import FineTuneSettings
+        class Model(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.embeddings = torch.nn.Module()
+                self.embeddings.word_embeddings = torch.nn.Embedding(24, 8)
+        class Encoder:
+            def __init__(self, path):
+                self.model = Model()
+                self.dimension = 8
+            def encode(self, texts, batch_size):
+                with torch.no_grad():
+                    return self.model.embeddings.word_embeddings(torch.zeros(len(texts), dtype=torch.long)).numpy()
+        labels = ['noise', 'temperature', 'power', 'software', 'other', None] * 3
+        events = []
+        def grad(encoder, texts, length):
+            return encoder.model.embeddings.word_embeddings(torch.zeros(len(texts), dtype=torch.long))
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch('training.finetuning.BgeEncoder', Encoder), \
+             patch('training.finetuning.embeddings_with_grad', grad), \
+             patch('training.finetuning.save_checkpoint'):
+            result = train_neural(Path(temporary), [str(i) for i in range(18)], labels,
+                                  list(range(12)), list(range(12, 18)), np.ones((18, 8), dtype=np.float32),
+                                  FineTuneSettings(epochs=1), {}, Path(temporary), 'finetuned', {},
+                                  lambda event, **values: events.append((event, values)))
+        self.assertTrue(result['embedding_weights_changed'])
+        batches = [values for event, values in events if event == 'batch']
+        self.assertEqual([values['completed'] for values in batches], [8, 12])
+        self.assertEqual(batches[-1]['total'], 12)
+
     def test_known_and_unknown_losses_update_encoder_and_heads(self):
         import torch
         from triage.neural import NeuralHeads

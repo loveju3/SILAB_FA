@@ -4,7 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     OMP_NUM_THREADS=2 \
     OPENBLAS_NUM_THREADS=2 \
     MKL_NUM_THREADS=2
-COPY data/ /app/data/
+COPY data/devices.json data/error_codes.json /app/data/
 COPY Solution/triage/ /app/Solution/triage/
 COPY Solution/config/ /app/Solution/config/
 COPY Solution/predict.py /app/Solution/predict.py

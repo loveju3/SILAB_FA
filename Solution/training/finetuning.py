@@ -59,6 +59,7 @@ def loss_for_batch(category, information, labels, information_labels, category_w
 
 def embeddings_with_grad(encoder, texts, length):
     inputs = encoder.tokenizer(texts, padding=True, truncation=True, max_length=length, return_tensors="pt")
+    inputs = {key: value.to(next(encoder.model.parameters()).device) for key, value in inputs.items()}
     vectors = encoder.model(**inputs).last_hidden_state[:, 0]
     return torch.nn.functional.normalize(vectors, p=2, dim=1)
 
@@ -73,7 +74,7 @@ def head_classifier(heads, encoder, codes, batch_size):
 def evaluate_heads(heads, vectors, labels, texts, codes):
     heads.eval()
     with torch.inference_mode():
-        cat, info = heads(torch.as_tensor(vectors.copy()))
+        cat, info = heads(torch.as_tensor(vectors.copy(), device=next(heads.parameters()).device))
         values = [None if i == 0 else CLASSES[c] for c, i in zip(cat.argmax(-1).tolist(), info.argmax(-1).tolist())]
     # Same public-code override as production; raw head scores are saved separately.
     from triage.linear import LinearTextClassifier
@@ -97,13 +98,14 @@ def save_checkpoint(directory, encoder, heads, settings, metadata):
                "settings": asdict(settings), "heads_sha256": file_sha256(directory / "heads.safetensors")})
 
 
-def train_neural(base, texts, labels, train, validation, cached, settings, codes, output, variant, metadata, notify):
+def train_neural(base, texts, labels, train, validation, cached, settings, codes, output, variant, metadata, notify, device="cpu"):
     seed_all(settings.seed)
     encoder = BgeEncoder(base)
+    encoder.model.to(device)
     joint = variant == "finetuned"
     encoder.model.requires_grad_(joint)
-    heads = NeuralHeads(encoder.dimension, settings.dropout)
-    targets = torch.tensor([CLASSES.index(c) if c is not None else -1 for c in labels])
+    heads = NeuralHeads(encoder.dimension, settings.dropout).to(device)
+    targets = torch.tensor([CLASSES.index(c) if c is not None else -1 for c in labels], device=device)
     info_targets = (targets >= 0).long()
     train_targets = targets[train]
     category_weights = class_weights(train_targets[train_targets >= 0], len(CLASSES))
@@ -121,7 +123,7 @@ def train_neural(base, texts, labels, train, validation, cached, settings, codes
     def scale(step):
         return (step + 1) / warmup if step < warmup else max(0, (total_steps - step) / max(1, total_steps - warmup))
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, scale)
-    before = hashlib.sha256(encoder.model.embeddings.word_embeddings.weight.detach().numpy().tobytes()).hexdigest()
+    before = hashlib.sha256(encoder.model.embeddings.word_embeddings.weight.detach().cpu().numpy().tobytes()).hexdigest()
     best_score, best_epoch, stale, best_metrics, curve = -1.0, 0, 0, None, []
     best_path = output / variant
     train_labels, val_labels = [labels[i] for i in train], [labels[i] for i in validation]
@@ -135,7 +137,7 @@ def train_neural(base, texts, labels, train, validation, cached, settings, codes
             indices = order[start:start + settings.batch_size]
             optimizer.zero_grad(set_to_none=True)
             vectors = (embeddings_with_grad(encoder, [texts[i] for i in indices], settings.max_length)
-                       if joint else torch.as_tensor(cached[indices].copy()))
+                       if joint else torch.as_tensor(cached[indices].copy(), device=device))
             cat, info = heads(vectors)
             loss = loss_for_batch(cat, info, targets[indices], info_targets[indices], category_weights,
                                   information_weights, settings.label_smoothing)
@@ -146,6 +148,11 @@ def train_neural(base, texts, labels, train, validation, cached, settings, codes
             optimizer.step()
             scheduler.step()
             total_loss += loss.item() * len(indices)
+            notify("batch", variant=variant, epoch=epoch, epochs=settings.epochs,
+                   completed=min(start + settings.batch_size, len(order)), total=len(order),
+                   message=f"{variant} · epoch {epoch}/{settings.epochs} · batch {start // settings.batch_size + 1}/{math.ceil(len(order) / settings.batch_size)}")
+        notify("stage", variant=variant, epoch=epoch,
+               message=f"{variant} · epoch {epoch} 訓練完成；計算訓練／驗證指標並保存最佳模型")
         encoder.model.eval()
         train_vectors = encoder.encode([texts[i] for i in train], settings.batch_size) if joint else cached[train]
         val_vectors = encoder.encode([texts[i] for i in validation], settings.batch_size) if joint else cached[validation]
@@ -168,7 +175,7 @@ def train_neural(base, texts, labels, train, validation, cached, settings, codes
         if stale >= settings.patience:
             notify("early_stop", variant=variant, epoch=epoch, best_epoch=best_epoch)
             break
-    after = hashlib.sha256(encoder.model.embeddings.word_embeddings.weight.detach().numpy().tobytes()).hexdigest()
+    after = hashlib.sha256(encoder.model.embeddings.word_embeddings.weight.detach().cpu().numpy().tobytes()).hexdigest()
     if joint and before == after:
         raise ValueError("encoder 權重沒有更新，不能宣稱完成聯合微調")
     if not joint and before != after:
@@ -180,7 +187,7 @@ def train_neural(base, texts, labels, train, validation, cached, settings, codes
             "last_epoch_embedding_sha256_before": before, "last_epoch_embedding_sha256_after": after}
 
 
-def run_comparison(history, output, settings, notify):
+def run_comparison(history, output, settings, notify, device="cpu"):
     """Do not refit on validation: publish best train-only checkpoints for review."""
     from helper_tool.evaluate import analyze, write_reports
     began = perf_counter()
@@ -200,6 +207,7 @@ def run_comparison(history, output, settings, notify):
                     SOLUTION / "train_finetune.py", SOLUTION / "requirements-embedding.txt",
                     ROOT / "data/devices.json", ROOT / "data/error_codes.json", SOLUTION / "config/device_aliases.json"]
     metadata = {"run_id": output.parent.name, "history_sha256": file_sha256(history), "dev_read": False,
+                "training_device": device,
                 "provenance": PROVENANCE, "settings": asdict(settings), "mask_device_names": False,
                 "source_sha256": {str(p.relative_to(ROOT)): file_sha256(p) for p in source_files},
                 "versions": {p: importlib.metadata.version(p) for p in ("torch", "transformers", "numpy", "scikit-learn")},
@@ -211,7 +219,7 @@ def run_comparison(history, output, settings, notify):
     write_json(output / "comparison.json", {**metadata, "results": []})
     base = SOLUTION / "models/bge-small-zh-v1.5"
     notify("stage", message="載入固定 BGE 並建立凍結 LR／SVC 對照", train_count=len(train), validation_count=len(validation), purged_count=len(purged))
-    encoder = BgeEncoder(base)
+    encoder = BgeEncoder(base, device=device)
     metadata["base_encoder"] = encoder.manifest
     texts = [classification_text(t.raw_text) for t in tickets]
     cached = encoder.encode(texts, settings.batch_size)
@@ -240,12 +248,14 @@ def run_comparison(history, output, settings, notify):
                                   "refit_full_history": False})
         result = {"variant": method, "model_path": str(path), "validation": metrics, **evaluate_pipeline(classifier, method)}
         results.append(result)
+        write_json(output / "comparison.json", {**metadata, "results": results})
         notify("baseline", **result)
     del classifier, encoder
     gc.collect()
     for variant in ("frozen-neural", "finetuned"):
         notify("stage", message="訓練凍結 encoder 的神經頭控制組" if variant == "frozen-neural" else "聯合更新 BGE encoder 與分類頭", variant=variant)
-        result = train_neural(base, texts, labels, train, validation, cached, settings, codes, output, variant, metadata, notify)
+        result = train_neural(base, texts, labels, train, validation, cached, settings, codes, output, variant, metadata, notify, device=device)
+        notify("stage", variant=variant, message=f"{variant} · 評估最佳 checkpoint 的完整四欄管線")
         classifier, _ = NeuralBgeClassifier.load(Path(result["model_path"]), codes)
         result.update(evaluate_pipeline(classifier, variant))
         results.append(result)

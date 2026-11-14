@@ -1,6 +1,7 @@
 """Execute allowlisted predictors and publish named local evaluation artifacts."""
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -37,7 +38,7 @@ def execute(method: str, limit: str, folder: Path, model_path: Path | None = Non
     if method != "baseline":
         args.extend(["--metrics", str(folder / "metrics.json")])
     if limit == "native":
-        interpreter = ROOT / ".venv/bin/python"
+        interpreter = ROOT / ('.venv/Scripts/python.exe' if os.name == 'nt' else '.venv/bin/python')
         python = str(interpreter) if method in MODEL_METHODS and interpreter.is_file() else sys.executable
         command = [python, str(ROOT / args[0]), *args[1:]]
     else:
@@ -51,17 +52,21 @@ def execute(method: str, limit: str, folder: Path, model_path: Path | None = Non
         if method != "baseline":
             args.extend(["--metrics", "/run/metrics.json"])
         container_name = "silab-ui-" + uuid.uuid4().hex[:16]
+        # atomic_write creates private files; use the host UID/GID so the UI
+        # can read predictions written into Linux/WSL temporary directories.
+        user = ["--user", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []
         command = ["docker", "run", "--pull=never", "--name", container_name, "--network=none", "--memory=2g",
                    "--memory-swap=2g", "--cpus=2", "--env", "PYTHONDONTWRITEBYTECODE=1",
                    "--env", "OMP_NUM_THREADS=2", "--env", "OPENBLAS_NUM_THREADS=2",
                    "--env", "MKL_NUM_THREADS=2", "--mount", f"type=bind,src={ROOT},dst=/app,readonly",
                    "--mount", f"type=bind,src={folder},dst=/run", "--workdir", "/app",
-                   *mounts, "--entrypoint", "python3", "silab-fa:scheme-c" if method.startswith("bge-") else
+                   *user, *mounts, "--entrypoint", "python3", "silab-fa:scheme-c" if method.startswith("bge-") else
                    "silab-fa:scheme-b" if method in MODEL_METHODS else "silab-fa:scheme-a",
                    "Solution/scripts/check_limits.py", "--report", "/run/limits.json", "--run", *args]
     started = perf_counter()
     try:
-        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=480)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, encoding='utf-8',
+                                env={**os.environ, 'PYTHONUTF8': '1'}, timeout=480)
     except FileNotFoundError as exc:
         raise ValueError("找不到執行工具；2 GB 模式需要先安裝並啟動 Docker") from exc
     except subprocess.TimeoutExpired as exc:

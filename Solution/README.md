@@ -42,10 +42,11 @@ Solution/
 ├── Dockerfile                標準 Python 容器建置定義
 ├── Dockerfile.ml             B 的 ML 依賴與本機模型映像
 ├── Dockerfile.embedding      C 的 CPU PyTorch、encoder 與分類頭映像
-├── bench.md                  本機 CPU 實測與方法
-├── budget.md                 2 GB 限制證據及實測
-└── choices.md                已實測及預定方案
+├── bench.md                  根目錄效能量測文件的導引頁
+└── budget.md                 2 GB 限制證據及實測
 ```
+
+技術選型表位於專案根目錄：[技術選型對照表](../技術選型對照表.md)。
 
 根目錄 `predict.py` 僅轉接到 Solution，維持題目兩參數入口。資料仍使用根目錄 `data/`，不複製另一份訓練/驗證資料。
 

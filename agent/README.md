@@ -4,10 +4,9 @@
 
 ## 準備與執行
 
-Windows、Python 3.10+；問答工具只需要標準函式庫。安裝階段需連網下載約 1.3 GB 模型與 CPU 執行檔；權重及 runtime 存在 Git 忽略的 `agent_assets/`，不會上傳原始資料。
+環境建立統一從 [docs/setup/](../docs/setup/README.md) 開始；現成的模型／CPU runtime 安裝流程見 [Windows 原生 Agent](../docs/setup/windows-native-agent.md)。問答工具本身只需標準函式庫；平台限制與模型來源均在該目錄說明。以下為完成環境準備後的操作範例：
 
 ```powershell
-python agent/setup.py
 python ask.py "B1 動力室有哪些設備？" --trace
 python ask.py "錯誤碼 E-01 屬於哪一類？"
 python ask.py "哪位回報人的工單最多？"

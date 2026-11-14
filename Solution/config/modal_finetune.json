@@ -1,0 +1,7 @@
+{
+  "app_name": "silab-bge-training",
+  "gpu": "T4",
+  "cpu": 2,
+  "memory_mb": 8192,
+  "timeout_seconds": 3600
+}

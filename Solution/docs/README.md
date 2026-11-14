@@ -2,6 +2,10 @@
 
 | 想了解什麼 | 文件 |
 |---|---|
+| macOS／Windows 環境建立、模型依賴與啟動方式 | [統一環境建立文件](../../docs/setup/README.md) |
+| 既有 Windows／WSL Docker 2 GiB 實測與疑難排解 | [Windows／WSL 驗證紀錄](Windows-WSL環境與2GB驗證.md) |
+| Modal 帳號登入、設定檔、雲端微調與模型下載的完整步驟 | [Modal 微調設定與操作](Modal微調設定與操作.md) |
+| 訓練頁、CPU／CUDA GPU／Modal、進度條與同步評估 | [訓練頁與運算環境](訓練頁與運算環境.md) |
 | 方案 A 如何判斷工單 | [演算法流程](演算法流程.md) |
 | 方案 B 的概念、設計重點與流程圖 | [字元 TF-IDF 分類方法說明](字元TF-IDF分類方法說明.md) |
 | 方案 B 的實作、實驗數字與操作 | [TF-IDF 實作與比較](TF-IDF實作與比較.md) |

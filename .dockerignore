@@ -4,5 +4,7 @@
 **/reports
 **/predictions
 **/experiments/runs
+**/*.jsonl
+Solution/models/training-runs/
 agent_assets/
 evals/results/

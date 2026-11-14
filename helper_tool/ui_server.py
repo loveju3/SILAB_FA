@@ -32,11 +32,10 @@ from helper_tool import agent_jobs
 
 
 def training_action(action, *args):
-    # Training uses Linux flock; keep unrelated UI features usable on Windows.
     try:
         from helper_tool import training_jobs
     except ModuleNotFoundError as exc:
-        raise ValueError("既有模型訓練需 Linux/WSL 環境與訓練依賴；Windows 可直接使用 Agent 評測") from exc
+        raise ValueError("模型訓練模組缺失，請確認專案與訓練依賴已安裝") from exc
     return getattr(training_jobs, action)(*args)
 
 WEB = Path(__file__).resolve().parent / "web"

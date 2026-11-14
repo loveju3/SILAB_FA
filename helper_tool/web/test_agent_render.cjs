@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const elements=new Map();
 function element(id){
-  if(!elements.has(id))elements.set(id,{id,innerHTML:'',textContent:'',hidden:false,value:'',
+  if(!elements.has(id))elements.set(id,{id,innerHTML:'',textContent:'',hidden:false,value:'',options:[],
     classList:{toggle(name,value){this[name]=value;},add(){},remove(){}},
     addEventListener(){},querySelectorAll(){return [];},querySelector(){return element('option');}});
   return elements.get(id);
