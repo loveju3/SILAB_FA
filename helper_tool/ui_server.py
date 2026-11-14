@@ -3,7 +3,7 @@
 import argparse
 from contextlib import redirect_stdout
 from datetime import datetime
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
 from pathlib import Path
@@ -28,12 +28,29 @@ except ImportError:
 from baseline.predict import main as baseline_predict
 # experiments uses package-relative imports, also when this server is a script.
 from helper_tool.experiments import run_experiment
-from helper_tool.training_jobs import get_job, list_jobs, start_job
+from helper_tool import agent_jobs
+
+
+def training_action(action, *args):
+    # Training uses Linux flock; keep unrelated UI features usable on Windows.
+    try:
+        from helper_tool import training_jobs
+    except ModuleNotFoundError as exc:
+        raise ValueError("既有模型訓練需 Linux/WSL 環境與訓練依賴；Windows 可直接使用 Agent 評測") from exc
+    return getattr(training_jobs, action)(*args)
 
 WEB = Path(__file__).resolve().parent / "web"
 RUNS = Path(__file__).resolve().parent / "reports/ui"
 DOWNLOADS = {"summary.json", "errors.jsonl", "errors.csv", "official.txt", "report.md"}
 MAX_BODY = 16 * 1024 * 1024
+
+
+class LocalHTTPServer(ThreadingHTTPServer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Read browser preconnections independently, but serialize application
+        # operations because the official evaluator captures process-wide stdout.
+        self.operation_lock = threading.Lock()
 
 
 def evaluate_upload(payload):
@@ -113,6 +130,10 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self):
+        with self.server.operation_lock:
+            self.handle_get()
+
+    def handle_get(self):
         if not self.local_request():
             return
         url = urlsplit(self.path)
@@ -128,7 +149,16 @@ class Handler(BaseHTTPRequestHandler):
                               "devices": json.loads((ROOT / "data/devices.json").read_text(encoding="utf-8"))})
             elif url.path == "/api/training":
                 job_id = parse_qs(url.query).get("id", [None])[0]
-                self.respond(get_job(job_id) if job_id else {"jobs": list_jobs()})
+                self.respond(training_action("get_job", job_id) if job_id else {"jobs": training_action("list_jobs")})
+            elif url.path == "/api/agent/jobs":
+                job_id = parse_qs(url.query).get("id", [None])[0]
+                self.respond(agent_jobs.get_job(job_id) if job_id else
+                             {"jobs": agent_jobs.list_jobs(), "availability": agent_jobs.availability()})
+            elif url.path == "/api/agent/report":
+                job_id = parse_qs(url.query).get("id", [None])[0]
+                folder = agent_jobs.directory(job_id)
+                self.send_bytes((folder / "report.json").read_bytes(), "application/json; charset=utf-8",
+                                attachment=f"agent-{job_id}.json")
             elif url.path == "/api/lookup":
                 ids = parse_qs(url.query).get("id", [""])[0].split()
                 if not ids or len(ids) > 30:
@@ -160,9 +190,13 @@ class Handler(BaseHTTPRequestHandler):
             self.respond({"error": str(exc)}, 400)
 
     def do_POST(self):
+        with self.server.operation_lock:
+            self.handle_post()
+
+    def handle_post(self):
         if not self.local_request():
             return
-        if self.path not in ("/api/evaluate", "/api/run", "/api/training"):
+        if self.path not in ("/api/evaluate", "/api/run", "/api/training", "/api/agent/jobs"):
             self.respond({"error": "找不到操作"}, 404)
             return
         try:
@@ -175,7 +209,9 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(payload, dict):
                 raise ValueError("請傳送 JSON object")
             if self.path == "/api/training":
-                self.respond(start_job(payload), 202)
+                self.respond(training_action("start_job", payload), 202)
+            elif self.path == "/api/agent/jobs":
+                self.respond(agent_jobs.start_job(payload), 202)
             else:
                 self.respond(run_experiment(payload, RUNS) if self.path == "/api/run" else evaluate_upload(payload))
         except (OSError, ValueError, UnicodeError) as exc:
@@ -188,13 +224,13 @@ def main():
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
     server = None
-    # A single request handler preserves the official evaluator's stdout capture.
+    # Idle browser preconnections must not block requests from other connections.
     for port in range(args.port, min(args.port + 20, 65536)):
         try:
-            server = HTTPServer(("127.0.0.1", port), Handler)
+            server = LocalHTTPServer(("127.0.0.1", port), Handler)
             break
         except OSError as exc:
-            if exc.errno not in (48, 98):
+            if exc.errno not in (48, 98, 10048):
                 raise
     if server is None:
         parser.exit(1, "無法取得本機連接埠，請使用 --port 指定其他埠號。\n")

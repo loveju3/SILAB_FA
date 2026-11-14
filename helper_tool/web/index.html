@@ -8,7 +8,7 @@
   <aside class="sidebar">
     <a class="brand" href="/" aria-label="SILAB 首頁"><span class="brand-icon">S<span> /</span></span><span>SILAB<span class="brand-sub">DEVELOPMENT LAB</span></span></a>
     <div class="nav-label">開發工作台</div>
-    <nav aria-label="主要導覽"><button class="nav active" data-page="evaluate"><span>◫</span> 評分分析 <small>01</small></button><button class="nav" data-page="lookup"><span>⌕</span> 工單查詢 <small>02</small></button></nav>
+    <nav aria-label="主要導覽"><button class="nav active" data-page="evaluate"><span>◫</span> 評分分析 <small>01</small></button><button class="nav" data-page="lookup"><span>⌕</span> 工單查詢 <small>02</small></button><button class="nav" data-page="agent"><span>◇</span> 問答 Agent <small>03</small></button></nav>
     <div class="sidebar-bottom"><span class="status-dot"></span> 本機離線工具<p>從分數找到問題，<br>從原文理解問題。</p><span class="version">HELPER TOOLS / v1.0</span></div>
   </aside>
   <main>
@@ -62,6 +62,30 @@
       <section class="panel lookup-panel"><form id="lookup-form"><label for="ticket-query">工單編號 <span class="muted">多筆可用空白或逗號分隔</span></label><div class="lookup-input-row"><input id="ticket-query" placeholder="例如 T02306" autocomplete="off" required><button class="button primary" id="lookup-button">查詢工單 <span>→</span></button></div></form><div class="quick-queries">快速試試 <button data-ticket="T02306">T02306</button><button data-ticket="T02306 T02304">比較重複前後單 ↗</button></div><div id="source-counts" class="source-counts"></div></section>
       <div id="lookup-status" class="message" role="status" aria-live="polite" hidden></div>
       <div id="lookup-results" class="ticket-grid"><div class="empty panel"><div class="empty-graphic">⌕</div><h2>工單的細節，都在這裡</h2><p>查詢 tickets、dev、history 三份資料。<br>保留原文、標籤及來源行號，方便追查判斷依據。</p></div></div>
+    </section>
+    <section id="page-agent" class="page" hidden>
+      <div class="page-heading"><div><div class="eyebrow">STAGE 02 · AGENT EVALUATION</div><h1>問答的依據，逐題看得見<span>。</span></h1><p>執行本機 LLM 評測，對照答案、引用與含模型載入的測試時間。</p></div></div>
+      <section class="panel agent-setup" aria-label="第二階段 Agent 測試設定">
+        <div class="section-title"><h2>智慧問答 Agent 測試</h2><span class="tag">CPU · 離線推論</span></div>
+        <form id="agent-form">
+          <div class="agent-controls">
+            <div class="form-control"><label for="agent-kind">測試項目</label><select id="agent-kind"><option value="history">智慧問答 · history 開發集（12 題）</option><option value="synthetic">智慧問答 · 合成測試集（12 題）</option><option value="patrol">主動巡檢 · 合成工單契約測試</option></select></div>
+            <div class="form-control"><label for="agent-threads">CPU threads</label><input id="agent-threads" type="number" min="1" max="12" value="6" required></div>
+            <button id="agent-start" class="button primary" type="submit">執行 Agent 測試 →</button>
+          </div>
+          <p class="detail-note">問答每題重新啟動並載入模型，需在 30 秒內完成；巡檢需在 120 秒內完成。兩套問答各含 6 題相同的公共對照表問題，均為開發評測。巡檢只檢查格式、引用與唯一性，不評排序品質。未套用 8 GB 硬限制。</p>
+        </form>
+        <p id="agent-availability" class="detail-note"></p>
+      </section>
+      <div id="agent-status" class="message" role="status" aria-live="polite" hidden></div>
+      <section class="panel agent-history"><label for="agent-jobs">本機測試紀錄</label><select id="agent-jobs"><option value="">尚無測試紀錄</option></select><button id="agent-refresh" class="button secondary small" type="button">重新整理</button></section>
+      <div id="agent-results" hidden>
+        <div class="result-heading"><div><span class="eyebrow">AGENT TEST RESULT</span><h2 id="agent-run-title"></h2></div><a id="agent-download" class="button secondary" download hidden>↓ 完整測試報告 JSON</a></div>
+        <div id="agent-metrics" class="metric-grid agent-metrics"></div>
+        <p id="agent-progress" class="detail-note" aria-live="polite"></p>
+        <section class="panel agent-cases"><div class="section-title"><h2>逐題結果與耗時</h2><span class="muted">執行期間逐題更新</span></div><div class="table-scroll"><table class="compare-table agent-table"><thead><tr><th>題目</th><th>結果</th><th>預期答案</th><th>實際答案</th><th>測試時間</th></tr></thead><tbody id="agent-rows"></tbody></table></div></section>
+      </div>
+      <div id="agent-empty" class="empty panel"><div class="empty-graphic">◇</div><h2>選擇測試，開始驗證問答</h2><p>執行後顯示總耗時、每題結果與預期答案。<br>重新整理頁面後，仍可選取本機保存的紀錄。</p></div>
     </section>
     <footer>SILAB <span>/</span> 算法開發工作台 <span>·</span> 所有計算與查詢皆在本機執行</footer>
   </main>

@@ -1,6 +1,9 @@
 """UI backend regression tests, without requiring a listening socket."""
 import json
 import os
+import socket
+import threading
+from urllib.request import urlopen
 from pathlib import Path
 import tempfile
 import unittest
@@ -10,6 +13,20 @@ from helper_tool import ui_server
 
 
 class UITest(unittest.TestCase):
+    def test_idle_preconnection_does_not_block_homepage(self):
+        server = ui_server.LocalHTTPServer(("127.0.0.1", 0), ui_server.Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            with socket.create_connection(server.server_address, timeout=2):
+                with urlopen(f"http://127.0.0.1:{server.server_port}/", timeout=3) as response:
+                    self.assertEqual(response.status, 200)
+                    self.assertIn(b"SILAB", response.read())
+        finally:
+            server.shutdown()
+            server.server_close()
+            worker.join(timeout=3)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

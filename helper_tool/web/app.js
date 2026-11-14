@@ -10,7 +10,7 @@ function formatValue(value){return esc(valueText(value));}
 function scoreText(summary){return `加權總分 ${summary.total.toFixed(6)} · 分類 macro-F1 ${summary.metrics.category.toFixed(6)}`;}
 function message(id, text, error=false){const el=$(id);el.textContent=text;el.hidden=!text;el.classList.toggle('error',error);}
 async function api(url, options){let response;try{response=await fetch(url, options);}catch{throw new Error('無法連線到本機工具。請確認啟動工具的視窗仍開啟。');}const data=await response.json();if(!response.ok)throw new Error(data.error || '操作失敗');return data;}
-function navigate(page){document.querySelectorAll('.page').forEach(el=>el.hidden=el.id!==`page-${page}`);document.querySelectorAll('.nav').forEach(el=>{el.classList.toggle('active',el.dataset.page===page);el.setAttribute('aria-current',el.dataset.page===page?'page':'false');});$('breadcrumb').textContent=page==='lookup'?'工單查詢':'評分分析';}
+function navigate(page){document.querySelectorAll('.page').forEach(el=>el.hidden=el.id!==`page-${page}`);document.querySelectorAll('.nav').forEach(el=>{el.classList.toggle('active',el.dataset.page===page);el.setAttribute('aria-current',el.dataset.page===page?'page':'false');});$('breadcrumb').textContent=({lookup:'工單查詢',agent:'智慧問答 Agent'})[page]||'評分分析';history.replaceState(null,'',`#${page}`);if(page==='agent')refreshAgent();else clearTimeout(agentTimer);}
 document.querySelectorAll('.nav').forEach(el=>el.addEventListener('click',()=>navigate(el.dataset.page)));
 function setFile(file){if(!file)return;state.predictionFile=file;$('file-label').textContent=file.name;$('file-hint').textContent=`${(file.size/1024).toFixed(1)} KB · 已選取，按「開始評分」`;$('evaluation-status').hidden=true;}
 $('prediction-file').addEventListener('change',e=>setFile(e.target.files[0]));
@@ -196,3 +196,51 @@ $('training-form').addEventListener('submit',async event=>{
     message('training-status','已建立訓練工作；模型與紀錄會保存在時間戳資料夾。');await refreshTraining(job.job_id);
   }catch(error){message('training-status',error.message,true);$('start-training').disabled=false;}
 });
+
+// Agent evaluations are independent persisted workers, so browser refreshes
+// never reset the measured time or terminate a model evaluation.
+let agentTimer=null, agentStarting=false, agentRowsKey='';
+const agentKinds={history:'智慧問答 · history',synthetic:'智慧問答 · 合成測試',patrol:'主動巡檢 · 契約測試'};
+const agentStates={queued:'等待中',running:'測試中',completed:'完成',failed:'執行失敗',interrupted:'已中斷'};
+function agentSeconds(value){return typeof value==='number'?`${value.toFixed(3)} 秒`:'—';}
+function renderAgent(job){
+  $('agent-results').hidden=false;$('agent-empty').hidden=true;
+  const active=['queued','running'].includes(job.state), rows=job.cases||[];
+  const total=job.timing?.total_seconds;
+  const maximum=rows.length?Math.max(...rows.map(row=>row.elapsed_s)):null;
+  $('agent-run-title').textContent=`${agentKinds[job.kind]} · ${agentStates[job.state]}`;
+  $('agent-progress').textContent=`已完成 ${job.completed} / ${job.total} · CPU ${job.threads} threads · 紀錄 ${job.job_id}`;
+  $('agent-download').hidden=!job.report_url;if(job.report_url)$('agent-download').href=job.report_url;
+  const cards=[['總耗時',agentSeconds(active?job.elapsed_seconds:total),active?'進行中，完成後保存精確總耗時':'含資料準備、逐題執行與報告儲存'],['通過題數',`${job.passed} / ${job.completed}`,job.kind==='patrol'?'契約檢查，不是排序準確率':`共 ${job.total} 題；未完成題目不列入分母`],['逐題耗時合計',agentSeconds(job.timing?.test_seconds),'每題含程序啟動與模型載入'],['最長單題',agentSeconds(maximum),job.kind==='patrol'?'巡檢上限 120 秒':'問答上限 30 秒']];
+  $('agent-metrics').innerHTML=cards.map(([title,value,note])=>`<div class="metric-card"><div class="metric-name">${esc(title)}</div><div class="metric-value precise">${esc(value)}</div><div class="metric-desc">${esc(note)}</div></div>`).join('');
+  const rowsKey=`${job.job_id}:${job.completed}:${job.state}`;
+  if(rowsKey!==agentRowsKey){$('agent-rows').innerHTML=rows.length?rows.map(row=>{
+    const actual=row.actual?.answer, brief=valueText(actual), error=row.error||(row.exit_code&&row.exit_code!==0?'程序未成功結束':row.elapsed_s>(job.kind==='patrol'?120:30)?'超過時間限制':!row.passed?'答案、型別或引用未通過檢查':'');
+    return `<tr><td><div class="case-id">${esc(row.id)}</div>${esc(row.question||row.id)}<details><summary>完整輸出與執行紀錄</summary><pre>${esc(JSON.stringify({expected:row.expected,actual:row.actual,error:row.error,exit_code:row.exit_code,trace:row.trace},null,2))}</pre></details></td><td><span class="pill ${row.passed?'correct':''}">${row.passed?'通過':'未通過'}</span>${error?`<p class="detail-note">${esc(error)}</p>`:''}</td><td>${formatValue(row.expected)}</td><td>${esc(brief.length>180?brief.slice(0,180)+'…':brief)}</td><td class="case-time">${agentSeconds(row.elapsed_s)}</td></tr>`;
+  }).join(''):'<tr><td colspan="5" class="muted">等待第一題完成；每題重新啟動並載入模型。</td></tr>';agentRowsKey=rowsKey;}
+  message('agent-status',job.message,['failed','interrupted'].includes(job.state));
+}
+async function refreshAgent(preferred){
+  clearTimeout(agentTimer);
+  try{
+    const data=await api('/api/agent/jobs');
+    const selected=preferred||$('agent-jobs').value||data.jobs[0]?.job_id;
+    $('agent-jobs').innerHTML=data.jobs.length?data.jobs.map(job=>`<option value="${esc(job.job_id)}">${esc(job.job_id)} · ${esc(agentKinds[job.kind])} · ${esc(agentStates[job.state])} · ${job.passed}/${job.completed}</option>`).join(''):'<option value="">尚無測試紀錄</option>';
+    if(data.jobs.some(job=>job.job_id===selected))$('agent-jobs').value=selected;
+    $('agent-start').disabled=agentStarting||!data.availability.ready||data.jobs.some(job=>['queued','running'].includes(job.state));
+    $('agent-availability').textContent=data.availability.ready?'本機 Qwen3-1.7B Q4 與 CPU runtime 已就緒。測試期間不下載模型。':'缺少本機模型或 runtime。Windows 請先執行 python agent/setup.py；Linux/WSL 需安裝原生 CPU llama-server。';
+    if($('agent-jobs').value)renderAgent(await api(`/api/agent/jobs?id=${encodeURIComponent($('agent-jobs').value)}`));
+  }catch(error){message('agent-status',error.message,true);}
+  if(!$('page-agent').hidden)agentTimer=setTimeout(()=>refreshAgent(),2000);
+}
+$('agent-form').addEventListener('submit',async event=>{
+  event.preventDefault();agentStarting=true;$('agent-start').disabled=true;
+  try{
+    const job=await api('/api/agent/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:$('agent-kind').value,threads:Number($('agent-threads').value)})});
+    await refreshAgent(job.job_id);
+  }catch(error){message('agent-status',error.message,true);}
+  finally{agentStarting=false;}
+});
+$('agent-refresh').addEventListener('click',()=>refreshAgent());
+$('agent-jobs').addEventListener('change',()=>refreshAgent());
+if(['agent','lookup','evaluate'].includes(location.hash.slice(1)))navigate(location.hash.slice(1));

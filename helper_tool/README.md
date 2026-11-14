@@ -8,10 +8,11 @@
 
 在 macOS Finder 打開 `helper_tool` 資料夾，**雙擊「啟動工具.command」**。它會自動啟動本機服務並開啟瀏覽器，不需要每次輸入指令。使用期間保留啟動視窗；結束時在該視窗按 Control+C。
 
-介面有兩個分頁：
+介面有三個分頁：
 
 - **評分分析**：可以直接選測試資料集、方法、執行環境及輸出資料夾，一鍵執行預測與評分；也保留上傳已有預測檔與「載入 Baseline 範例」。畫面顯示總分、四項指標、錯誤長條圖及分類混淆矩陣。自動預測後可切換「全部判斷／只看錯題」，依錯誤欄位、ID、原文或回報人篩選，逐筆對照正解、預測與建議。可下載預測 JSONL、錯題 CSV／JSONL 及指標 JSON。
 - **工單查詢**：輸入一個或多個 ticket_id，按查詢或 Enter。直接呈現原文、回報人、時間、標籤、來源檔與行號；重複工單編號可點擊追查。
+- **問答 Agent**：第二階段本機 LLM 評測，可選 history／合成問答集（各 12 題）與巡檢契約測試。背景執行，逐題顯示問題、預期答案、實際答案、通過狀態、含模型載入的時間與執行紀錄；同時顯示總耗時、逐題耗時合計及最長單題，支援選取既有工作與下載完整 JSON 報告。
 
 評分檔只在本機讀取，原始資料不會被修改。每次評分報告保留在 `helper_tool/reports/ui/<時間與唯一編號>/`；重啟後檔案仍保留，網頁上的分析狀態則不保留。評分規則及檔案檢查與下方命令列工具相同。選檔每檔上限 8 MB，請求總量上限 16 MB。
 
@@ -162,3 +163,19 @@ python3 -m unittest discover -s helper_tool -p 'test_*.py' -v
 訓練 API 為 `POST /api/training`，查詢為 `GET /api/training` 及 `GET /api/training?id=工作ID`，皆受原有 localhost／Origin 檢查保護。API 不接受 dev 作為訓練來源；上傳前須確認資料是 history。檔名檢查不能識別改名的 dev，資料使用仍須遵守專案規範。
 
 完整設定、比較分數、模型格式與保存結構見 [BGE 聯合微調與 UI 訓練](../Solution/docs/BGE聯合微調與UI訓練.md)。
+
+## 第二階段 Agent 評測 UI
+
+先依 [Agent 操作文件](../agent/README.md) 準備本機模型與 CPU runtime，再進入左側「問答 Agent」。Windows 原生 Python 可直接執行 `python helper_tool/ui_server.py --port 8785`；既有模型訓練仍需 Linux/WSL 與原訓練依賴，現在不會因 Windows 缺少 fcntl 而阻止整個 UI 啟動。Linux/WSL 使用 Agent UI 時需在 `agent_assets/runtime/llama-server` 安裝原生 CPU 執行檔，不以 Windows exe 冒充 Linux runtime。
+
+選擇測試集與 CPU threads 後按「執行 Agent 測試」。history／synthetic 問答每題重新啟動並載入模型，30 秒內完成才可通過；巡檢契約測試要求 120 秒。兩套問答各含 6 題相同的公開對照表問題，屬於開發評測；巡檢只驗證格式、真實引用與工單唯一性，不把它當作排序準確率。UI 不提供 dev 選項，也不讀 dev 作為 Agent 語料或證據。
+
+總耗時由背景 worker 的 perf_counter 計量，包含評測準備、逐題程序、模型載入與報告保存，不含 HTTP 傳輸、等待排程及最後的計時狀態寫入。每題時間直接使用原評測程式的 monotonic 外部程序計時；逐題合計不等於含準備／存檔的總耗時。執行中約每兩秒更新狀態，畫面上的即時總時間是進行中估計，完成後以保存的精確計時為準。
+
+背景工作與網頁請求分離，重新整理或離開頁面不會終止測試；UI 服務重啟後可讀回紀錄。問答答錯會顯示「完成」與未通過題目，不混同為程序失敗；崩潰、逾時或異常中止另列狀態並保留已完成題目。一次只允許一個 Agent 測試，避免互相影響 CPU 計時。尚未套用 8 GB 硬限制。
+
+每次紀錄存放於 Git 忽略的 `helper_tool/reports/agent/<台北時間與唯一編號>/`：`status.json` 保存逐題進度與總耗時、`report.json` 保存原始評測與版本／來源資料、`runner.log`／`runner.stderr.log`／`worker.log` 保存本機執行紀錄。完整 trace 可能包含 history 內容，只留本機，不加入 Git。
+
+API 為 `POST /api/agent/jobs`（kind=history／synthetic／patrol、threads=1..12），`GET /api/agent/jobs`、`GET /api/agent/jobs?id=工作ID` 與 `GET /api/agent/report?id=工作ID`。沿用 localhost／Origin 保護，不接受自訂命令、任意路徑或 dev。CLI 仍可單獨執行；`evals/run.py --events` 額外提供 JSONL 進度事件給 UI，不改變模型決策或評分。
+
+驗證：`python -X utf8 -m unittest helper_tool.test_agent_jobs helper_tool.test_ui -v`、`node helper_tool/web/test_agent_render.cjs`。本次另經正式 UI API 跑完真實 Qwen 合成問答 12 題：11/12，總耗時 169.043 秒、逐題合計 167.396 秒；不以過往 CLI 耗時冒充 UI 本次耗時。前端單元測試涵蓋時間、答錯狀態、HTML 跳脫、展開紀錄在輪詢時保留。瀏覽器鍵鼠驗證曾因工具無法確認網址而被停止，因此未宣稱已完成目視或跨螢幕驗證。
