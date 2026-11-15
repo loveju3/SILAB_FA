@@ -12,6 +12,7 @@ import urllib.request
 from .process import ChildGuard
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_SERVER = ROOT / "agent_assets/runtime" / ("llama-server.exe" if os.name == "nt" else "llama-server")
 
 
 class LocalModel:

@@ -135,7 +135,7 @@ def start_job(payload):
     if type(threads) is not int or not 1 <= threads <= 12:
         raise ValueError("CPU threads 必須是 1～12 的整數")
     if not availability()["ready"]:
-        raise ValueError("缺少本機 Qwen 模型或 CPU runtime。Windows 請先執行 python agent/setup.py；Linux/WSL 需原生 llama-server。")
+        raise ValueError("缺少本機 Qwen 模型或 CPU runtime。Windows/macOS 請先執行 python agent/setup.py；Linux/WSL 需原生 llama-server。")
     if kind == "history" and not (ROOT / "data/history.jsonl").is_file():
         raise ValueError("找不到開發用 history.jsonl")
     if kind == "patrol-tickets" and not (ROOT / "data/tickets.jsonl").is_file():

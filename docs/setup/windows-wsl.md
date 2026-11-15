@@ -1,6 +1,6 @@
-# Windows／WSL 環境
+# 進階開發：既有 Windows／WSL 環境
 
-先閱讀 [環境索引與資料準備](README.md)。本頁適用第一部分批次分流、Linux CPU 模型及 Docker 驗證；只使用第二部分 Agent 時，另見 [Windows 原生 Agent](windows-native-agent.md)。
+一般 Windows 測試者請使用 [Windows 完整原生環境](windows.md)，同一環境即可跑兩階段，不需要 WSL。本頁保留給既有 WSL 開發、Linux CPU 模型及 Docker／2 GB 驗證；不作一般測試者的必經流程。
 
 ## 1. 安裝與開啟 WSL Ubuntu
 

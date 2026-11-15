@@ -1,5 +1,11 @@
 # SILAB_FA 可攜式批次分流映像（2026-11-15）
 
+## 先安裝並啟動 Docker
+
+1. 如果這台電腦還沒有 Docker，先安裝 [Docker Desktop](https://www.docker.com/products/docker-desktop/)。下載 image 檔不會一併安裝 Docker。
+2. 啟動 Docker Desktop，等待引擎就緒；Windows 使用 Linux containers。
+3. 在終端執行 `docker version`，確認同時顯示 Client 與 Server，再繼續下載／匯入與測試。若顯示找不到指令，先確認安裝完成並重開終端；若只有 Client 或連線引擎失敗，先確認 Docker Desktop 已啟動。
+
 ## 包含內容與限制
 
 - 映像標籤：silab-fa:portable-batch-20261115。

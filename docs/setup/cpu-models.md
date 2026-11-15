@@ -1,6 +1,10 @@
-# CPU 模型與 Docker
+# 進階開發：CPU 模型訓練與 Docker
 
-先依 [macOS](macos.md) 或 [Windows／WSL](windows-wsl.md) 在對應作業系統建立 `.venv`，並準備 [本機資料](README.md#準備本機資料)。以下命令從專案根目錄執行，使用 Unix 的 `.venv/bin/python`；不適用 Windows PowerShell 的原生 Agent 環境。
+一般測試者先依 [Windows](windows.md) 或 [Mac](macos.md) 完成一套環境；下列重新訓練與 2 GB Docker 為開發者進階工作。
+
+**本頁 Docker 指令的前置條件：**若電腦尚未安裝 Docker，先安裝並啟動 [Docker Desktop](https://www.docker.com/products/docker-desktop/)，執行 `docker version` 確認有 Client 與 Server 後，才能執行下方任何 `docker build`／`docker run`。Windows 使用 Linux containers；從 WSL 執行時另啟用該發行版的 WSL integration。
+
+本頁沿用既有 Unix 開發環境 `.venv`，Windows／WSL 可依 [既有 WSL 路線](windows-wsl.md) 建立；若已依 [Mac 完整流程](macos.md) 建好 `.venv-macos`，將以下 `.venv/bin/python` 換成 `.venv-macos/bin/python` 即可，不需要為一般測試再建一份環境。資料準備見 [完整流程索引](README.md)。命令從 repo 根目錄執行；以下 Unix 路徑不適用 Windows PowerShell。
 
 ## TF-IDF（方案 B）
 

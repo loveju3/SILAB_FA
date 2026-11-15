@@ -2,6 +2,9 @@ __pycache__/
 *.py[cod]
 .DS_Store
 .venv/
+.venv-windows/
+.venv-macos/
+/transfer/
 
 # Input data, ticket predictions and reports stay on this machine.
 /data/

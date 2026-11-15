@@ -11,7 +11,7 @@ for stream in (sys.stdout, sys.stderr):
     if hasattr(stream, "reconfigure"):
         stream.reconfigure(encoding="utf-8")
 
-from agent.runtime import LocalModel, ROOT
+from agent.runtime import LocalModel, ROOT, DEFAULT_SERVER
 from agent.tools import SNAPSHOT, Store, contains_device, normalize, object_schema, timestamp, validate
 
 # Exact safety terms from the formal urgency specification, not scheme A assets.
@@ -113,7 +113,7 @@ def main(argv=None):
     parser.add_argument("--tickets", type=Path, default=ROOT / "data/tickets.jsonl")
     parser.add_argument("--data-dir", type=Path, default=ROOT / "data")
     parser.add_argument("--model", type=Path, default=ROOT / "agent_assets/Qwen_Qwen3-1.7B-Q4_K_M.gguf")
-    parser.add_argument("--server", type=Path, default=ROOT / "agent_assets/runtime/llama-server.exe")
+    parser.add_argument("--server", type=Path, default=DEFAULT_SERVER)
     parser.add_argument("--threads", type=int, default=6)
     parser.add_argument("--trace", action="store_true")
     args = parser.parse_args(argv)

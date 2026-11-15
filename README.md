@@ -10,27 +10,18 @@
 
 ## 建立環境
 
-環境建立文件統一放在 [`docs/setup/`](docs/setup/README.md)。第一次執行請先依該目錄的索引選擇作業系統，完成 Python、必要模型依賴及本機資產準備，再閱讀功能操作文件。
+另一台電腦只需選擇自己的作業系統，依序完成一份流程，就能備妥第一階段批次分流、第二階段問答／巡檢與測試 UI 所需的環境：
 
-- **macOS**：依循 [macOS 環境](docs/setup/macos.md)。
-- **Windows 第一部分批次分流**：依循 [Windows／WSL 環境](docs/setup/windows-wsl.md)。
-- **Windows 原生問答 Agent 與測試 UI**：依循 [Windows 原生 Agent 環境](docs/setup/windows-native-agent.md)。
-- **TF-IDF／BGE 與 Docker 2 GB 模式**：平台環境完成後，依循 [CPU 模型與 Docker](docs/setup/cpu-models.md)。
+- **Windows x64**：[Windows 完整環境建置](docs/setup/windows.md)，使用同一個 Windows 原生 Python 環境，不需要 WSL。
+- **macOS Apple Silicon**：[Mac 完整環境建置](docs/setup/macos.md)。已補齊模型與原生 runtime 安裝流程，但本次沒有 Mac 實機，尚未完成端到端驗證。
 
-各平台的虛擬環境與執行檔不能混用；第一部分已加入 Windows 原生峰值工作集量測相容性，規則版入口可在 Windows 執行，但不代表所有模型與完整效能實驗都已跨平台重測。macOS／WSL 的 Agent 尚無完整自動安裝流程，支援邊界已列在對應文件中。
+兩份流程都包含：本機資料、測試模型包解壓位置、CPU 套件、Qwen／llama.cpp 下載、環境檢查與兩階段測試指令。**2 GB Docker、重新訓練與打包是進階開發工作，不是另一台電腦開始測試的必要步驟。**
 
-### 第一次到另一台電腦：先完成資料、模型與測試環境
+若選用 Docker 映像流程，**尚未安裝 Docker 的電腦，請先安裝並啟動 [Docker Desktop](https://www.docker.com/products/docker-desktop/)**，再執行 `docker build`、`docker load` 或 `docker run`。確認 `docker version` 同時顯示 Client 與 Server；只有 image 檔不代表電腦已安裝 Docker。
 
-**只有 clone repo／安裝 Python 還不夠。** 模型、原始資料與 runtime 不隨 Git 提供。請依 [完整測試環境準備清單](docs/setup/test-readiness.md) 做完以下步驟，再開始測試：
+測試模型包為 `SILAB_FA_test_models_20261115.zip`，向維護者取得後解壓到 repo 根目錄；其中微調模型會位於 `transfer/finetuned/`。原始工單另行在本機準備，Qwen 與原生 runtime 則由 `agent/setup.py` 下載。模型包不隨 Git 提供，可向維護者索取或查看 [共用資料夾](https://drive.google.com/drive/folders/1QeCQjNet73n8FYnrJ4WLmnpGKPnNc7zt)；檔案尚未放入時不會自動下載。
 
-1. 選擇上述平台流程，建立該作業系統自己的 Python 環境；Windows 批次模型使用 WSL，Agent 使用 Windows 原生 Python。
-2. 將公共表放到 `data/devices.json`、`data/error_codes.json`，工單放到 `data/tickets.jsonl`；若要訓練／跑 history 評測，另備 `data/history.jsonl`。這些資料自行在本機傳送，不上傳雲端。
-3. TF-IDF 與固定 BGE 依 [CPU 模型與 Docker](docs/setup/cpu-models.md) 安裝套件、下載 encoder 並以 history 建立分類頭，或放入同版的可信模型資產。單獨下載公開 BGE 權重不等於已有分類頭。
-4. **使用已微調 BGE**：向專案維護者取得 `SILAB_FA_bge_finetuned_20261115-082422.zip`（由維護者自行放入 [共用雲端資料夾](https://drive.google.com/drive/folders/1QeCQjNet73n8FYnrJ4WLmnpGKPnNc7zt)；若未找到請索取，不由程式自動下載），解壓到 repo 根目錄的 `transfer/`。確認存在 `transfer/finetuned/model.json`、`heads.safetensors` 及完整 `encoder/`，使用 `--method bge-finetuned --model-path transfer/finetuned`；容器內則掛載至 `/model`。不用重新 fine-tune。詳細 [建置與掛載步驟](docs/testing/finetuned_transfer_readme.md)。
-5. **使用問答／巡檢 Agent**：Windows 執行 `python agent/setup.py`，讓它下載並安裝 `agent_assets/Qwen_Qwen3-1.7B-Q4_K_M.gguf`、`agent_assets/runtime/llama-server.exe` 與相依 DLL。macOS／WSL 須另備原生 runtime，詳見平台文件；BGE 模型不能替代 Agent 的 Qwen 模型。
-6. 若要跑 2 GB 測試，先安裝並啟動 Docker、完成所需映像建置或匯入，再核對 [測試項目與必要資產](docs/setup/test-readiness.md#測試前逐項確認)。安裝／下載可連網，正式推論須離線。
-
-完整準備清單同時列出每種模型的預期位置、下載／建立指令、Docker 路線與測試入口。完成準備表示具備執行條件，**不代表正確率、480／30／120 秒或記憶體限制已通過**；這些仍需在目標電腦實測。
+[本次實測與限制](docs/setup/validation-2026-11-15.md) 區分了 Windows 真實執行、Mac 安裝器檢查與尚未驗證的項目。環境準備完成不代表準確率或效能已通過；驗收仍需實際執行。
 
 ## 1. 我怎麼發現問題的
 

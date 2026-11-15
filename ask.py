@@ -12,7 +12,7 @@ for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")
 
 from agent.core import Agent
-from agent.runtime import LocalModel, ROOT
+from agent.runtime import LocalModel, ROOT, DEFAULT_SERVER
 from agent.tools import Store
 
 
@@ -20,7 +20,7 @@ def arguments():
     parser = argparse.ArgumentParser(description="本機 CPU 智慧問答 Agent")
     parser.add_argument("question")
     parser.add_argument("--model", type=Path, default=ROOT / "agent_assets/Qwen_Qwen3-1.7B-Q4_K_M.gguf")
-    parser.add_argument("--server", type=Path, default=ROOT / "agent_assets/runtime/llama-server.exe")
+    parser.add_argument("--server", type=Path, default=DEFAULT_SERVER)
     parser.add_argument("--tickets", type=Path, default=ROOT / "data/tickets.jsonl",
                         help="正式預設 tickets；開發可明確指定 history 或合成資料，拒絕 dev")
     parser.add_argument("--data-dir", type=Path, default=ROOT / "data")

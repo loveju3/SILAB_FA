@@ -11,7 +11,9 @@
 
 ## 1. 準備另一台電腦
 
-安裝並啟動 Docker，Windows 使用 Linux containers。建置時需要網路下載 Python 基底映像與 CPU 套件；正式推論禁止外部網路。
+**若這台電腦尚未安裝 Docker，請先安裝 [Docker Desktop](https://www.docker.com/products/docker-desktop/)**，啟動後等待引擎就緒；Windows 使用 Linux containers。模型 ZIP／image 檔本身不會安裝 Docker。
+
+在終端執行 `docker version`，確認同時顯示 Client 與 Server，再繼續建置。若找不到指令，確認安裝完成並重開終端；若只有 Client 或連不上引擎，先啟動 Docker Desktop。建置時需要網路下載 Python 基底映像與 CPU 套件；正式推論禁止外部網路。
 
 取得與目前程式相容的 repo（打包時 HEAD：355943ed5b77e3c799fba0472139f62408267a94；實際工作樹程式雜湊另列 ZIP 的 MANIFEST.json）。若 Git 遠端尚未更新到這版，需另外同步所需程式；只 clone 舊版不保證支援 bge-finetuned。訓練不需重新執行。
 
