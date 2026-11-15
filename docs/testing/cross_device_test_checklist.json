@@ -1,0 +1,2200 @@
+{
+  "schema_version": "1.0",
+  "title": "SILAB_FA 跨電腦需求驗收清單",
+  "language": "zh-TW",
+  "created_date": "2026-11-15",
+  "purpose": "依 HW_RULES.md 整理另一台電腦應操作的 Python 入口、參數、輸出、效能、記憶體與交付審查；本檔為可填寫的測試計畫，不是自動測試程式或已通過報告。",
+  "source_project": {
+    "original_path": "C:\\Users\\lovej\\Desktop\\SILAB_FA",
+    "git_revision": "355943ed5b77e3c799fba0472139f62408267a94",
+    "git_status_at_read": "clean",
+    "sources": [
+      "HW_RULES.md",
+      "schema.md（只取通用格式／規則；不轉載 dev 個案）",
+      "AGENTS.md",
+      "predict.py",
+      "Solution/predict.py",
+      "Solution/triage/factory.py",
+      "Solution/triage/io.py",
+      "Solution/scripts/benchmark.py",
+      "Solution/scripts/check_limits.py",
+      "Solution/Dockerfile",
+      "ask.py",
+      "patrol.py",
+      "evals/run.py",
+      "evals/run_patrol.py",
+      "docs/setup/README.md",
+      "docs/setup/windows-native-agent.md",
+      "agent/README.md"
+    ],
+    "source_hashes": {
+      "HW_RULES.md": "a60f1982dc57c28637e3b01c5704b8b1e32b6522915fef14838fe9f1cbdc1a64",
+      "schema.md": "2214f5c7d27cbaf691a1b57262ddde8f5b5e93c5caae5b75926bc36f85c2a110",
+      "AGENTS.md": "05e0363ba60ee95bc597838fbd6befa3e4d09efc3ddf8ad2985b9186d6edbabd",
+      "predict.py": "5341d46ca6a6126a152b56fe3203905995a03844f5b96e0449458558cb1fa6a2",
+      "Solution/predict.py": "2dc4636c66628360f948c87bf3860aa7c8719c7bb8bad150ad5df4b0b0752569",
+      "Solution/triage/factory.py": "668063572aea231202fb80858c3208ac56c2b55609a4b0b9e0b73488e406cbab",
+      "Solution/triage/io.py": "ffb316235e3c01ab59045e8c838b80a25dd19585a3f7a25c79681bb5ec82ef55",
+      "Solution/scripts/benchmark.py": "960dc5b3c1f14b59dc12bb82cda90a3d9259315836a5558f099f072067ac2139",
+      "Solution/scripts/check_limits.py": "f00d0a04e7aa606c9f76c95f7c178f005c6f1fc19144c036645983d37ead2696",
+      "Solution/Dockerfile": "a7f43fc4294970f728647511d617a8217b5bd0e35897836c8696a7287441a9ec",
+      "ask.py": "3563bd18d8b19460e36e0149434ba73224d8b7bc3a595af1c22d391ab978aa64",
+      "patrol.py": "7f906fa5b5f9aa78b06df92c6e6370c17800658163be4208767040ed550c6ef2",
+      "evals/run.py": "315e3465278d8241703fc4ee5fc313e9be05171eaa52e4bc3e820730d43ca558",
+      "evals/run_patrol.py": "ad961fdb1c6432e39aba5bdaf2be0fb7b4abfb4ff1f81f9b54ebff9721eb1f8d",
+      "docs/setup/README.md": "4791445fb2d4524b5d68b8ed3b72ac84e56ded2e4e4fbb9701f590647d28bf7e",
+      "docs/setup/windows-native-agent.md": "3b620693a3fc4a74bfe3515ec4d9e278254ab1fcf63d849ddd85d99f51146985",
+      "agent/README.md": "032b85bc19a2d3e8ab1cdcdad1dc9941d8002b55c5bb3e4a70bb36c5d48aa3b1"
+    }
+  },
+  "target_drive_folder": {
+    "id": "1QeCQjNet73n8FYnrJ4WLmnpGKPnNc7zt",
+    "name": "HW_cross_device_test"
+  },
+  "execution_state": {
+    "tests_executed": false,
+    "statement": "本次僅讀規格／介面並驗證本 JSON 結構；未執行推論、dev 評分、跨電腦或效能測試。",
+    "test_count": 41,
+    "status_counts": {
+      "not_run": 41,
+      "passed": 0,
+      "failed": 0,
+      "blocked": 0,
+      "not_applicable": 0
+    }
+  },
+  "instructions": {
+    "working_directory": "另一台電腦的 SILAB_FA 專案根目錄",
+    "python_command": "範例以 python3 表示；Windows 原生常用 python。使用目標平台實際解譯器並記錄完整路徑；不必逐字保留 python3 名稱。",
+    "command_format": "commands 為供人執行的範例，不是此 JSON 自動執行的指令；<...> 必須先替換，Docker mount 含空白需依 shell 加引號。",
+    "order": [
+      "ENV-*",
+      "CLI-01",
+      "BATCH-*",
+      "PERF-*",
+      "OFFLINE-*",
+      "MEM-*",
+      "ASK-*",
+      "PATROL-*",
+      "EVAL-*",
+      "SCORE-*（版本固定後）",
+      "DOC-*"
+    ],
+    "status_enum": [
+      "not_run",
+      "passed",
+      "failed",
+      "blocked",
+      "not_applicable"
+    ],
+    "status_rules": [
+      "未執行 passed=null；通過 true、失敗 false；blocked／not_applicable 保持 null 並在 issues 說明。",
+      "失敗或阻擋不刪除；重跑應另存 runs 或複製本檔並記錄版本，不覆寫歷史。",
+      "不要由時間上限設定、舊報告或本機曾成功推定另一台電腦通過。",
+      "沒有最低準確率門檻；測試執行成功與模型得分應分開解讀。"
+    ],
+    "cloud_result_policy": "雲端僅保留測試計畫、彙總指標、去識別化行為描述與本機證據路徑。原始 data、預測 JSONL、逐筆 trace、錯題及逐筆實驗資料依 AGENTS.md 只留本機。",
+    "dev_policy": "不得檢視／抽樣／搜尋 dev 原文、標籤、分布或衍生逐筆結果；僅固定版本驗證並回報彙總。baseline/evaluate.py 會印範例，完整輸出留本機，由驗證程序只提取彙總；不得回饋算法。",
+    "additional_test_policy": "本文合成案例僅依公開規格與公共表建立，不使用 schema.md 中的 dev 個案例子。"
+  },
+  "environment_template": {
+    "environment_id": null,
+    "tester": null,
+    "os": null,
+    "cpu": null,
+    "cpu_threads": null,
+    "physical_ram_gb": null,
+    "python_executable": null,
+    "python_version": null,
+    "docker_version": null,
+    "cgroup_version": null,
+    "git_revision": null,
+    "git_dirty": null,
+    "model_paths_and_sha256": [],
+    "config_sha256": {},
+    "dataset_sha256": {},
+    "network_block_method": null,
+    "memory_measurement_tool": null,
+    "test_started_at": null,
+    "test_finished_at": null
+  },
+  "cli_contracts": {
+    "predict": {
+      "entry": "predict.py → Solution/predict.py",
+      "required_positionals": [
+        "input",
+        "output"
+      ],
+      "required_form": "python3 predict.py <input.jsonl> <output.jsonl>",
+      "default_method": "rules",
+      "implemented_optional": {
+        "--metrics": "寫本機量測 JSON，含逐筆耗時；不直接上傳",
+        "--method": [
+          "rules",
+          "tfidf-lr",
+          "tfidf-svc",
+          "bge-lr",
+          "bge-svc",
+          "bge-finetuned"
+        ],
+        "--model-path": "可信本機 joblib 路徑；bge-finetuned 為含 model.json 的模型目錄"
+      },
+      "not_implemented": [
+        "--mem-limit",
+        "根目錄 predict_2gb.py"
+      ],
+      "output": "UTF-8 JSONL 七欄；目前正常 stdout 為空"
+    },
+    "ask": {
+      "entry": "ask.py",
+      "required_positionals": [
+        "question"
+      ],
+      "required_optional_flags": [
+        "--trace"
+      ],
+      "implemented_optional": {
+        "--model": "Path；預設 agent_assets/Qwen_Qwen3-1.7B-Q4_K_M.gguf",
+        "--server": "Path；預設 agent_assets/runtime/llama-server.exe；Linux 須指定對應執行檔",
+        "--tickets": "Path；預設 data/tickets.jsonl；開發可用 history／合成，拒絕 dev",
+        "--data-dir": "Path；預設 data",
+        "--threads": "int >=1；預設6",
+        "--timeout": "0 < float <=29；預設29",
+        "--max-steps": "int 2..8；預設4",
+        "--trace": "旗標；決策事件送 stderr"
+      },
+      "output": "stdout 一個 JSON object：answer、evidence、tools_used，note 選填"
+    },
+    "patrol": {
+      "entry": "patrol.py",
+      "required_positionals": [],
+      "required_form": "python3 patrol.py",
+      "implemented_optional": {
+        "--tickets": "Path；預設 data/tickets.jsonl",
+        "--data-dir": "Path；預設 data",
+        "--model": "Path；預設 Agent GGUF",
+        "--server": "Path；預設 Windows llama-server.exe",
+        "--threads": "int；預設6",
+        "--trace": "旗標；stderr"
+      },
+      "output": "stdout 一個 JSON array，正式要求10個 ticket_id/reason/priority 物件"
+    },
+    "evaluate": {
+      "entry": "baseline/evaluate.py",
+      "positionals": [
+        "predictions.jsonl",
+        "gold.jsonl"
+      ],
+      "output": "人類可讀評分表，不是 JSON；含四欄、總分、LLM 使用率、警告與 suggestion 範例"
+    },
+    "evals": {
+      "entry": "evals/run.py",
+      "implemented_optional": {
+        "--suite": [
+          "synthetic",
+          "history"
+        ],
+        "--case": "指定 case ID",
+        "--output": "本機報告路徑",
+        "--threads": "int；預設6",
+        "--events": "JSONL 進度",
+        "--server": "本機 runtime 路徑"
+      },
+      "output": "預設 passed/total 與本機報告路徑；全過 exit0，有失敗 exit1"
+    }
+  },
+  "known_gaps_to_check": [
+    "尚未替另一台電腦執行任何測試。",
+    "目前根目錄無 predict_2gb.py／--mem-limit；2 GB 需確認替代重現與交付說明。",
+    "目前 Dockerfile 是 rules 專用，不含根目錄 predict.py 與 Agent runtime；不能用它假設驗證所有入口。",
+    "Agent 自動安裝只支援 Windows；Linux/macOS 須依文件自行準備匹配 CPU runtime。",
+    "巡檢候選不足十張可能違反正式恰好十張契約。",
+    "自製 Evals 可能有尚未支援題；不預填通過。",
+    "方案 A 與沿用資產有既有 dev 影響限制。"
+  ],
+  "test_cases": [
+    {
+      "id": "ENV-01",
+      "group": "preparation",
+      "title": "另一台電腦建立可重現環境",
+      "purpose": "確認測的是同一候選版本，且資產已就緒。",
+      "requirement_level": "required",
+      "source_sections": [
+        "運行環境與產品限制",
+        "完整交付清單"
+      ],
+      "depends_on": [],
+      "commands": [
+        "git rev-parse HEAD",
+        "git status --short",
+        "python3 --version"
+      ],
+      "steps": [
+        "取得程式碼；不要複製不同作業系統的 .venv。",
+        "記錄 OS、CPU、實體 RAM、Python、Git revision、未提交差異及模型／設定雜湊。",
+        "依 docs/setup/README.md 選擇平台流程；只在安裝階段連網。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "所有正式入口及其依賴可用；環境欄位填妥。",
+          "模型下載／安裝方法可重現，推論階段不下載。"
+        ],
+        "artifacts": [
+          "本機環境與資產版本紀錄"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "ENV-02",
+      "group": "preparation",
+      "title": "本機資料準備與來源隔離",
+      "purpose": "避免 Git 忽略的資料遺漏，並保護 dev 驗證邊界。",
+      "requirement_level": "required",
+      "source_sections": [
+        "附件清單",
+        "資料集使用指引",
+        "AGENTS.md：dev 僅供驗證"
+      ],
+      "depends_on": [],
+      "commands": [],
+      "steps": [
+        "由測試者在另一台電腦的本機準備 data/tickets.jsonl、devices.json、error_codes.json。",
+        "history 只供開發自測；dev 僅在版本／設定凍結後由驗證器使用。",
+        "記錄資料來源與雜湊，不在雲端清單貼原文、標籤、逐筆預測、trace 或錯題。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "正式資料路徑存在且讀取權限正確。",
+          "未將 dev 或其衍生結果用於開發、訓練、few-shot 或檢索。"
+        ]
+      },
+      "notes": [
+        "HW_RULES.md 對 dev 的舊允許範圍較寬；本清單依目前 AGENTS.md 的更嚴格規則執行。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "CLI-01",
+      "group": "batch",
+      "title": "根目錄兩位置參數入口",
+      "purpose": "重現評分者正式呼叫方式，不依賴額外旗標。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第一部分交付項目"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 predict.py data/tickets.jsonl reports/cross_device/tickets_predictions.jsonl"
+      ],
+      "steps": [
+        "在專案根目錄以全新程序執行。",
+        "執行前確認輸出路徑不會覆蓋需要保留的結果。"
+      ],
+      "expected": {
+        "exit_code": 0,
+        "output_file": "reports/cross_device/tickets_predictions.jsonl",
+        "pass_criteria": [
+          "不需要 --method、--model-path 或 --metrics 即可成功。",
+          "對每筆輸入產生一筆 UTF-8 JSONL 預測。"
+        ],
+        "stdout": "需求未規定批次 stdout 必須是 JSON；目前實作正常時不印出內容。"
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "BATCH-01",
+      "group": "batch",
+      "title": "完整輸出與 ticket_id 一對一",
+      "purpose": "防止漏單、多單、重複 ID 或不合法 JSON。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第一部分：批次分流",
+        "schema.md：輸出／評分"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "對 CLI-01 的輸出逐行用 JSON parser 驗證。",
+        "比對輸入與輸出非空行數及 ticket_id 集合。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "正式 tickets 共 2000 筆時，輸出也為 2000 筆。",
+          "每行單一 JSON object；每個輸入 ID 恰好輸出一次；無額外 ID。",
+          "UTF-8、保留中文與刻意缺字，未把合法 UTF-8 誤判為壞檔。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "BATCH-02",
+      "group": "batch",
+      "title": "七欄結構及 JSON 型別",
+      "purpose": "確保評分器不因必要欄位缺漏判整筆無效。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第一部分：批次分流",
+        "schema.md：輸出"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "在本機驗證每筆預測的欄位與型別。"
+      ],
+      "expected": {
+        "required_fields": [
+          "ticket_id",
+          "device_id",
+          "category",
+          "urgency",
+          "duplicate_of",
+          "llm_used",
+          "suggestion"
+        ],
+        "allowed_values": {
+          "device_id": "devices.json 中的 ID 或 JSON null",
+          "category": [
+            "noise",
+            "temperature",
+            "power",
+            "software",
+            "other",
+            null
+          ],
+          "urgency": [
+            "low",
+            "normal",
+            "high"
+          ],
+          "duplicate_of": "同一輸入檔較早工單的 ID 或 JSON null",
+          "llm_used": "JSON boolean",
+          "suggestion": "string"
+        },
+        "pass_criteria": [
+          "不可用字串 'null'、'true'、'false' 冒充 JSON 型別。",
+          "urgency 不可為 null；四判斷欄位及 llm_used 均不得缺漏。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "BATCH-03",
+      "group": "batch",
+      "title": "建議與 llm_used 人審",
+      "purpose": "確認建議對應現象且如實申報生成式模型使用。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第一部分交付項目",
+        "schema.md：輸出"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "僅從 tickets 預測抽樣，在本機對照原始工單。",
+        "核對生成式模型實際使用路徑與 llm_used；embedding／傳統分類器不算生成式模型。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "suggestion 指向具體現象、零件或錯誤碼；不虛構原因。",
+          "建議 40 字以內屬建議值，超長記錄提醒，不當成 evaluator 硬性失敗。",
+          "suggestion 缺漏不扣客觀分，但本交付品質項目應記錄缺失。",
+          "llm_used 正確反映當筆是否呼叫生成式模型。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "BATCH-04",
+      "group": "batch",
+      "title": "排序與最近重複工單",
+      "purpose": "驗證 duplicate_of 依時間與穩定順序判定。",
+      "requirement_level": "required",
+      "source_sections": [
+        "schema.md：duplicate_of"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "使用自行撰寫的合成四欄輸入，建立同回報人／設備／類別三連單。",
+        "刻意打亂時間順序，再測同時間的檔案先後順序。",
+        "加入不同回報人、設備、類別以及 null 條件。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "按 created_at 先後判斷，時間相同以輸入順序決定。",
+          "第三張指最近符合條件的第二張，而非最早一張。",
+          "任一設備或類別為 null 時 duplicate_of 為 null。",
+          "不同回報人／設備／類別不串單，不跨輸入檔。"
+        ]
+      },
+      "notes": [
+        "不用 dev 個案建立合成案例。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "BATCH-05",
+      "group": "batch",
+      "title": "指涉與設備／類別邊界",
+      "purpose": "檢查正式 schema 的行為而非只檢查能否執行。",
+      "requirement_level": "required",
+      "source_sections": [
+        "schema.md：device_id／category",
+        "資料集使用指引"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "依公開設備表與正式規則，自製含明確設備、位置歧義、代稱、未知設備及多症狀的合成輸入。",
+        "用兩個獨立輸入檔驗證前一檔上下文不會延續。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "位置歧義不武斷當作唯一設備；上下文只有線索充分才沿用。",
+          "category 依報修問題判定，不由設備名稱或 urgency 倒推。",
+          "不確定時允許 null，不虛構未知錯誤碼含意。",
+          "推論只使用四個輸入欄位和允許的固定資產。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "BATCH-06",
+      "group": "batch",
+      "title": "urgency 六階段與優先順序",
+      "purpose": "核對明定規則、critical 條件及雜訊處理。",
+      "requirement_level": "required",
+      "source_sections": [
+        "schema.md：urgency"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "依正式觸發詞與 devices.json 自製合成案例，涵蓋六階段。",
+        "測安全詞與不確定詞共現、否定／疑問句、未知設備、英語雜訊。",
+        "另記錄 README 描述的髒字容錯取捨，不擅自擴充同義詞。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "先命中 high 優先於 low，否定／疑問句仍依字面規則。",
+          "critical 規則依預測 device_id 查表，未知設備跳過該條。",
+          "asap/help/error/GG 不直接升高 urgency。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "BATCH-07",
+      "group": "batch",
+      "title": "非法 JSON 輸入失敗",
+      "purpose": "確認壞檔不會回報成功。",
+      "requirement_level": "required",
+      "source_sections": [
+        "schema.md：評分"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 predict.py reports/cross_device/fixtures/invalid.jsonl reports/cross_device/invalid_predictions.jsonl"
+      ],
+      "steps": [
+        "自行建立含非法 JSON 的獨立合成檔；不要改動正式資料。",
+        "記錄 exit code、stderr 及是否殘留舊輸出。"
+      ],
+      "expected": {
+        "exit_code": "非零",
+        "pass_criteria": [
+          "明確報錯，不宣稱已完成合法預測。"
+        ]
+      },
+      "notes": [
+        "空檔、重複 ID 等額外防呆屬目前實作檢查，不是 HW_RULES 明定的評分命令。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "BATCH-08",
+      "group": "batch",
+      "title": "輸入答案欄位不影響推論",
+      "purpose": "確認不動態偷讀當筆標準答案。",
+      "requirement_level": "required",
+      "source_sections": [
+        "資料集使用指引",
+        "AGENTS.md：dev 僅供驗證"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "自行撰寫兩份四欄完全相同的合成輸入，第二份加上相互矛盾的答案欄位。",
+        "用同一凍結版本與設定預測並比對輸出；檢查程式讀取邊界。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "額外標籤被忽略，輸出一致。",
+          "沒有根據當筆 ticket_id 從 dev／history 查答案。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "SCORE-01",
+      "group": "evaluation",
+      "title": "固定版本 dev 四欄評分",
+      "purpose": "記錄重現成績，供 bench.md／budget.md 使用。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第一部分交付項目",
+        "評分與審查方式",
+        "AGENTS.md：dev 僅供驗證"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 predict.py data/dev.jsonl reports/cross_device/dev_predictions.jsonl",
+        "python3 baseline/evaluate.py reports/cross_device/dev_predictions.jsonl data/dev.jsonl"
+      ],
+      "steps": [
+        "先凍結版本、設定與資料來源。",
+        "驗證器執行；不要開啟 dev 原文、逐筆預測或錯題。",
+        "將完整 stdout/stderr 留本機；僅把四欄與總分等彙總填入 metrics。"
+      ],
+      "expected": {
+        "exit_code": 0,
+        "aggregate_metrics": [
+          "device_id accuracy",
+          "category macro-F1",
+          "urgency macro-F1",
+          "duplicate_of F1",
+          "weighted_total",
+          "llm_usage_rate"
+        ],
+        "weighted_total": "0.4*category + 0.2*device + 0.2*urgency + 0.2*duplicate",
+        "pass_criteria": [
+          "完成合法評分並保存版本與設定。",
+          "沒有規定最低分數門檻，不能自行把任意分數當通過標準。"
+        ]
+      },
+      "notes": [
+        "baseline/evaluate.py stdout 會印 suggestion 範例及可能的工單 ID；不得直接完整上傳或據此調整算法。",
+        "方案 A 曾參考 dev，沿用資產的成績不可稱為獨立未觀察測試。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "SCORE-02",
+      "group": "evaluation",
+      "title": "隱藏 300 筆評分呼叫契約",
+      "purpose": "預演評分者的輸入／輸出介面。",
+      "requirement_level": "required",
+      "source_sections": [
+        "評分與審查方式",
+        "第一部分交付項目"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 predict.py <hidden_input.jsonl> <hidden_predictions.jsonl>"
+      ],
+      "steps": [
+        "由持有隱藏測資的評分者提供四欄輸入。",
+        "本機可用合成檔替代做介面 smoke，但不得冒稱跑過隱藏集。"
+      ],
+      "expected": {
+        "exit_code": 0,
+        "pass_criteria": [
+          "兩位置參數入口可處理相同 schema 的未知輸入。",
+          "實際客觀分由評分者以未公開 300 筆計算。"
+        ]
+      },
+      "notes": [
+        "未持有隱藏集時 result.status 設 blocked，註明原因；合成測試結果另記。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "PERF-01",
+      "group": "performance",
+      "title": "CPU 全流程 480 秒",
+      "purpose": "檢查完整啟動到輸出完成的端到端預算。",
+      "requirement_level": "required",
+      "source_sections": [
+        "運行環境與產品限制",
+        "效能量測方式：總時間"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 predict.py data/tickets.jsonl reports/cross_device/perf_predictions.jsonl --metrics reports/cross_device/perf_metrics.json"
+      ],
+      "steps": [
+        "由外部 runner 計時全新程序，包含模型載入、推論與寫檔；安裝／事前下載排除。",
+        "限單機 CPU；記錄實際 CPU、RAM、執行緒、背景負載與方法。"
+      ],
+      "expected": {
+        "exit_code": 0,
+        "total_seconds_max": 480,
+        "mean_seconds_per_ticket_max": 0.24,
+        "pass_criteria": [
+          "2000 筆輸出完成且總時間 <=480 秒。",
+          "不要只用程式內部 pipeline_seconds 代替外部總時間。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "PERF-02",
+      "group": "performance",
+      "title": "逐筆 P50／P95／最大值與可信度",
+      "purpose": "區分模型載入、逐筆延遲及批次攤提。",
+      "requirement_level": "required",
+      "source_sections": [
+        "效能量測方式：單筆延遲分佈"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 Solution/scripts/benchmark.py --input data/tickets.jsonl --runs 3 --method rules --output-dir reports/cross_device/benchmark"
+      ],
+      "steps": [
+        "保存每次獨立程序的外部耗時，以及 metrics 中逐筆耗時。",
+        "彙總 P50、P95、最大值；說明量幾次、是否預熱、是否排除載入。",
+        "若 P95 明顯高於 P50，記錄原因；若為批次向量化的攤提值，清楚揭露。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "bench.md 包含所有數字與量測範圍。",
+          "逐筆 P50/P95 沒有另訂硬性 0.24 秒門檻；0.24 秒是平均預算。"
+        ]
+      },
+      "notes": [
+        "此腳本目前只支援 rules/tfidf-lr/tfidf-svc/bge-lr/bge-svc；不支援 bge-finetuned。",
+        "--runs 3 是本清單建議重現次數，不是題目強制次數。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "PERF-03",
+      "group": "performance",
+      "title": "一般 8 GB 記憶體條件",
+      "purpose": "確認峰值 RAM 與量測工具可信。",
+      "requirement_level": "required",
+      "source_sections": [
+        "運行環境與產品限制",
+        "效能量測方式：總時間",
+        "第二部分產品條件"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "優先在實體 8 GB 筆電上測 batch、ask 與 patrol。",
+        "測量整體程序樹；Agent 必須包含 llama-server 子程序。",
+        "若非 8 GB 主機，在報告寫實際規格與『未在 8 GB 上驗證』，不得填已驗證。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "保存峰值記憶體與工具名稱；如實說明是否在 8 GB 實機驗證。",
+          "確認 CPU 執行、無 GPU 依賴與 OOM。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "OFFLINE-01",
+      "group": "runtime",
+      "title": "推論禁止外部網路",
+      "purpose": "證明可在資產預備完成後離線運作。",
+      "requirement_level": "required",
+      "source_sections": [
+        "運行環境與產品限制",
+        "第二部分產品條件"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "完成套件／模型準備後，封鎖外網或斷開外網連線。",
+        "重新執行 batch、ask、patrol；監測外連、下載與遠端 API。",
+        "Agent 允許目前實作必要的 127.0.0.1 本機通訊；不要用全面禁止 socket 代替禁止外網。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "三入口均離線成功，沒有外部 API 或臨時下載。",
+          "保存外網封鎖方法及觀察到的連線摘要。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "MEM-01",
+      "group": "budget_2gb",
+      "title": "2 GB 模式與交付入口",
+      "purpose": "確認另一台電腦實際能重現 2 GB 版。",
+      "requirement_level": "required",
+      "source_sections": [
+        "記憶體預算演練：同一題，2 GB"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "在 budget.md 指定 predict_2gb.py 或 predict.py 的可重現模式。",
+        "若共用 rules 版，明確記錄相同算法加容器硬限制的替代重現方式。",
+        "確認原始 predict.py 兩參數行為保留。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "能重現 2 GB 版本，且提供 tickets_predictions_2gb.jsonl 與 budget.md。"
+        ]
+      },
+      "notes": [
+        "目前沒有根目錄 predict_2gb.py，也沒有 --mem-limit；不可照需求舉例直接當成已實作命令。",
+        "現有 Dockerfile 使用 Solution/predict.py rules，可先驗證共享實作；這不自動等於根目錄的替代交付入口已完成。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "MEM-02",
+      "group": "budget_2gb",
+      "title": "Docker 硬限制確認",
+      "purpose": "防止只設參數卻沒有真正限制記憶體。",
+      "requirement_level": "required",
+      "source_sections": [
+        "記憶體預算演練：怎麼限制記憶體"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "docker build -f Solution/Dockerfile -t silab-cross-device .",
+        "docker run --rm --network none --memory 2g --memory-swap 2g --cpus 2 silab-cross-device Solution/scripts/check_limits.py"
+      ],
+      "steps": [
+        "在支援 Linux cgroup v2 的 Docker 環境執行。",
+        "保存 cgroup memory.max、memory.swap.max、cpu.max。"
+      ],
+      "expected": {
+        "exit_code": 0,
+        "memory_max_bytes": 2147483648,
+        "swap_max_bytes": 0,
+        "pass_criteria": [
+          "check_limits.py 確認限制，不只是相信 docker 指令字面。"
+        ]
+      },
+      "notes": [
+        "2g 在目前 Docker／檢查器代表 2 GiB；在 budget.md 說明單位。",
+        "無 swap、2 CPU 是本清單採用的可重現設定；題目只強制 2 GB 記憶體與單機 CPU。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "MEM-03",
+      "group": "budget_2gb",
+      "title": "2 GB 完整 tickets 推論與時間",
+      "purpose": "同一 2000 筆在硬限制下完成並產生合法輸出。",
+      "requirement_level": "required",
+      "source_sections": [
+        "記憶體預算演練：交三樣"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "docker run --rm --network none --memory 2g --memory-swap 2g --cpus 2 --mount type=bind,source=<ABS_DATA_DIR>,target=/app/data,readonly --mount type=bind,source=<ABS_RESULTS_DIR>,target=/results silab-cross-device Solution/scripts/check_limits.py --report /results/limits-2gb.json --run Solution/predict.py data/tickets.jsonl /results/tickets_predictions_2gb.jsonl --metrics /results/metrics-2gb.json"
+      ],
+      "steps": [
+        "先建立本機結果資料夾，替換兩個絕對路徑；含空白的 mount 值依 shell 正確加引號。",
+        "使用和第一部分相同的 tickets；輸出與逐筆 metrics 留本機。",
+        "外部計時並記錄 cgroup 峰值、OOM 事件及 exit code。"
+      ],
+      "expected": {
+        "exit_code": 0,
+        "total_seconds_max": 480,
+        "mean_seconds_per_ticket_max": 0.24,
+        "pass_criteria": [
+          "在確認的 2 GiB 上限下完成，未被 OOM 終止。",
+          "輸出遵守 BATCH-01/02；取得總時間、P50/P95，建議也保留最大值。"
+        ]
+      },
+      "notes": [
+        "目前映像只包含 rules 所需程式與公共表；要測其他方法須另準備依賴與模型，不能直接更換 --method 假設可用。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "MEM-04",
+      "group": "budget_2gb",
+      "title": "2 GB dev 各欄掉分",
+      "purpose": "量測資源取捨影響，不拿 tickets 無標籤資料算準確率。",
+      "requirement_level": "required",
+      "source_sections": [
+        "記憶體預算演練：budget.md",
+        "AGENTS.md：dev 僅供驗證"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "凍結一般版與 2 GB 版設定，再用同一 dev 交給驗證器評分。",
+        "2 GB 預測命令沿用 MEM-03，將輸入換 data/dev.jsonl、輸出換 /results/dev_predictions_2gb.jsonl；不要改寫原檔。",
+        "用 baseline/evaluate.py 在本機計算；只記四欄彙總、原版減 2 GB 版的差值。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "budget.md 記四欄各自分數／掉分、算法變更、捨棄欄位、時間及取捨原因。",
+          "urgency 始終三選一；其他三欄允許 null。",
+          "沒有以 dev 掉分反覆選型或調參。",
+          "2 GB 不以隱藏測試分數評斷，重點是重現與取捨說明。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "ASK-01",
+      "group": "agent",
+      "title": "正式 ask.py 一題一值 JSON",
+      "purpose": "檢查公開範例的介面及裸值答案。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第二部分：ask.py"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 ask.py \"D01 空壓機的錯誤碼 E-01 屬於哪一類？\""
+      ],
+      "steps": [
+        "以全新程序執行，不借用預先常駐模型。",
+        "stdout 整份以 JSON parser 讀取，stderr 另存。"
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout_json": {
+          "answer": "temperature",
+          "evidence": [],
+          "tools_used": "非空工具名稱陣列；名稱自訂，不要求等於範例名稱",
+          "note": "可選說明字串"
+        },
+        "pass_criteria": [
+          "answer 是裸字串 temperature，說明放 note。",
+          "公開查表題 evidence 為 []。",
+          "stdout 沒有日誌、啟動畫面或 trace。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "ASK-02",
+      "group": "agent",
+      "title": "--trace 必要旗標與串流隔離",
+      "purpose": "讓審查者看到實際模型／工具決策過程。",
+      "requirement_level": "required",
+      "source_sections": [
+        "核心機制：讓模型做決策",
+        "第二部分產品條件"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 ask.py \"D01 空壓機的錯誤碼 E-01 屬於哪一類？\" --trace"
+      ],
+      "steps": [
+        "分別擷取 stdout 與 stderr。",
+        "核對工具選擇、參數、Observation 與停止動作可追查。"
+      ],
+      "expected": {
+        "exit_code": 0,
+        "pass_criteria": [
+          "支援 --trace；trace 在 stderr。",
+          "stdout 仍只有可解析的最終 JSON。",
+          "不要求暴露模型內部 chain-of-thought；可用決策事件紀錄驗證機制。"
+        ]
+      },
+      "notes": [
+        "含工單內容的 trace 只留本機。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "ASK-03",
+      "group": "agent",
+      "title": "answer 型別與設備回傳約定",
+      "purpose": "防止答案正確卻因額外文字或型別被判錯。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第二部分：ask.py answer"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "建立公開表／合成工單題，分別問數量、設備 ID、名稱、類別、設備清單。",
+        "每題只問一件事；預期答案由測試者獨立計算。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "數量為 JSON number 且表示整數，不是字串。",
+          "清單為 JSON array。",
+          "問設備回 ID，明確問名稱才回名稱；類別回 enum。",
+          "answer 不加前後綴說明，補充放 note。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "ASK-04",
+      "group": "agent",
+      "title": "evidence 契約與完整集合計數",
+      "purpose": "避免引用格式或截斷計數造成整題失敗。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第二部分：ask.py evidence",
+        "查詢範圍規範"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "自製符合數超過 20 的合成資料測試，不用 dev。",
+        "測公開表、非空工單查詢、查無工單三種情況。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "工單題計數基於全部符合原始工單，不把 20 筆引用上限當數量。",
+          "有用到非空工單結果時 evidence 為 1～20 個有效 ticket_id。",
+          "超過 20 個只取代表性的前 20 個。",
+          "純查表或零結果時 evidence 為 []；引用不可是不存在的 ID。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "ASK-05",
+      "group": "agent",
+      "title": "證據來源與預測非事實",
+      "purpose": "確認正式問題只用 tickets 原文及公共表作證。",
+      "requirement_level": "required",
+      "source_sections": [
+        "兩部分怎麼搭配",
+        "查詢範圍規範"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "審查 Store／工具讀取路徑與 trace。",
+        "可在隔離副本隱藏預測檔、history 與 dev，再跑正式問題。",
+        "以合成資料檢查若預測與原文矛盾，答案仍根據原文。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "正式證據、答案與計數只以 tickets 原文及公共表為準。",
+          "預測最多作候選過濾，不當絕對事實。",
+          "history/dev 不成為隱藏題的證據。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "ASK-06",
+      "group": "agent",
+      "title": "UTC 日期邊界與快照今天",
+      "purpose": "避免依另一台電腦的實際日期產生不同答案。",
+      "requirement_level": "required",
+      "source_sections": [
+        "查詢範圍規範"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "以自製合成資料測 UTC 邊界前、等於、後一秒的工單。",
+        "問『2026-10-01 之後』與『今天』；以原文可驗證條件獨立算答案。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "『2026-10-01 之後』包含 2026-10-01T00:00:00Z。",
+          "『今天』以 2026-10-14T15:10:00Z 快照為準，不依系統日期或 dev 最晚日期。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "ASK-07",
+      "group": "agent",
+      "title": "模型自主選工具與穩健停止",
+      "purpose": "驗證 Agent 核心機制，而非固定查表流程。",
+      "requirement_level": "required",
+      "source_sections": [
+        "核心機制：讓模型做決策"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "在至少一個需補查的公開／合成題檢查 --trace 及 Agent 核心程式。",
+        "用 scripted model 或合成異常回覆測無效工具參數、重複呼叫、步數上限與 deadline。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "模型選擇工具及參數，程式執行並把 Observation 回饋。",
+          "模型能選擇結束；程式有最大步數／deadline 等保護。",
+          "失敗明確報錯，不能輸出假成功答案。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "ASK-08",
+      "group": "agent",
+      "title": "單題冷程序 30 秒與 CPU／8 GB",
+      "purpose": "核對包含模型載入的正式時間預算。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第二部分產品條件"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 ask.py \"B1 動力室有哪些設備？\""
+      ],
+      "steps": [
+        "由外部 runner 對每題新啟動程序計時，直到 stdout JSON 完整出現。",
+        "另記程序關閉耗時、模型子程序記憶體與 CPU 設定。"
+      ],
+      "expected": {
+        "exit_code": 0,
+        "total_seconds_max": 30,
+        "pass_criteria": [
+          "含模型載入，每題 <=30 秒；CPU 離線運行。",
+          "29 秒內部 timeout 設定不等於已實測符合 30 秒。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "ASK-09",
+      "group": "agent",
+      "title": "14 題隱藏問答驗收",
+      "purpose": "記錄正式評分方式，避免自製題分數冒充隱藏題成績。",
+      "requirement_level": "required",
+      "source_sections": [
+        "評分與審查方式",
+        "第二部分：ask.py"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 ask.py \"<單一隱藏問題>\""
+      ],
+      "steps": [
+        "由評分者逐題新程序執行 14 題，每題只問一件事。",
+        "比較 answer 值及型別，同時驗 evidence 格式與時間。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "14 題分別記錄正確／錯誤與耗時，再彙總通過題數。",
+          "沒有事先公開的最低答對數門檻。"
+        ]
+      },
+      "notes": [
+        "無隱藏題則標 blocked；自製 14 題 smoke 不能視作正式隱藏成績。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "PATROL-01",
+      "group": "patrol",
+      "title": "無參數巡檢與十張工單",
+      "purpose": "驗證正式 patrol.py 呼叫契約。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第二部分：patrol.py"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 patrol.py"
+      ],
+      "steps": [
+        "以完整 tickets 在專案根目錄無問題、無必要額外參數啟動。",
+        "解析 stdout，對照本機 tickets ID。"
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout_json_type": "array",
+        "expected_items": 10,
+        "required_item_fields": [
+          "ticket_id",
+          "reason",
+          "priority"
+        ],
+        "pass_criteria": [
+          "恰好 10 張且 ID 有效、不重複；reason 為字串。",
+          "priority 建議 high/medium/low；這是人審建議值，不是題目硬性自動比對 enum。",
+          "stdout 無日誌，trace 若啟用只走 stderr。"
+        ]
+      },
+      "notes": [
+        "目前只從辨識到關鍵設備的候選選取，候選不足 10 張會少於 10；不可因此放寬本項正式契約。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "PATROL-02",
+      "group": "patrol",
+      "title": "巡檢理由與排序人審",
+      "purpose": "確認理由真實，且選取反映快照當下急迫性。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第二部分：patrol.py",
+        "評分與審查方式"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "本機逐一對照選中十張的原始工單與快照時間。",
+        "審查候選篩選是否漏掉安全／停機急件及重複事件。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "理由反映該單原文，不杜撰已結案、已修復或其他缺少的狀態。",
+          "有可說明的當下迫切性與排序取捨。",
+          "格式 smoke 通過不能代替排序品質人審。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "PATROL-03",
+      "group": "patrol",
+      "title": "巡檢全流程 120 秒",
+      "purpose": "包含模型啟動的完整巡檢資源驗證。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第二部分產品條件"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 patrol.py"
+      ],
+      "steps": [
+        "全新程序由外部計時到輸出完整 JSON，記錄 CPU 與整個程序樹峰值 RAM。"
+      ],
+      "expected": {
+        "exit_code": 0,
+        "total_seconds_max": 120,
+        "pass_criteria": [
+          "CPU、離線、8 GB 條件下 <=120 秒。",
+          "118 秒內部 deadline 不是效能達標證明。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "EVAL-01",
+      "group": "evals",
+      "title": "至少十題與一鍵評測",
+      "purpose": "核對自製評測交付完整性。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第二部分：evals/"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 evals/run.py --suite synthetic"
+      ],
+      "steps": [
+        "確認題庫含 >=10 題、問題、預期答案與設計理由。",
+        "執行一鍵腳本；逐題新程序；保存版本、設定及彙總。",
+        "檢閱簡短報告是否寫分數、失敗類型及出乎預期的題目。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "題庫與腳本存在且可重現，>=10 題均實際計入分母。",
+          "報告如實記成功數、失敗／逾時與限制，不把 unsupported 題目跳過當成功。"
+        ],
+        "exit_code_interpretation": {
+          "0": "目前 runner 全題通過",
+          "1": "目前 runner 至少一題未通過；不是必然代表環境安裝失敗"
+        }
+      },
+      "notes": [
+        "只跑現有 synthetic/history 開發 suite；不要讀 dev 逐筆結果。"
+      ],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "EVAL-02",
+      "group": "evals",
+      "title": "history 評測與巡檢 smoke",
+      "purpose": "補充跨電腦回歸，區分題目硬要求與既有工具。",
+      "requirement_level": "supplemental",
+      "source_sections": [
+        "evals/（實作補充）"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 evals/run.py --suite history",
+        "python3 evals/run_patrol.py --dataset synthetic",
+        "python3 evals/run_patrol.py --dataset tickets"
+      ],
+      "steps": [
+        "執行現有 runner；逐筆結果、工單快照、trace 只留本機。",
+        "雲端僅填彙總與本機檔案路徑。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "回報各 suite 通過數／總題數；巡檢 contract_passed 與時間。",
+          "巡檢 smoke 僅涵蓋格式、ID、唯一性及時間，不宣稱排序正確率。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "DOC-01",
+      "group": "deliverables",
+      "title": "交付檔案與實際入口對應",
+      "purpose": "避免只在 Solution 子目錄有結果，根目錄交付缺漏。",
+      "requirement_level": "required",
+      "source_sections": [
+        "完整交付清單",
+        "第一部分交付項目",
+        "記憶體預算演練"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "核對 required_artifacts 的所有項目及 README 指向。",
+        "確認測試產出放 reports/cross_device 不等於已完成根目錄交付檔案。",
+        "按 AGENTS.md 原始資料與預測留本機，不為湊 Git 清單而上傳。"
+      ],
+      "expected": {
+        "required_artifacts": [
+          "predict.py",
+          "tickets_predictions.jsonl（本機）",
+          "choices.md 或 README 第6段或可找到的等效選型表",
+          "bench.md",
+          "predict_2gb.py 或可重現的 predict.py 2 GB 模式",
+          "tickets_predictions_2gb.jsonl（本機）",
+          "budget.md",
+          "ask.py",
+          "patrol.py",
+          "evals/ 題庫＋runner＋報告",
+          "ai-log/ 或 README 說明未使用 AI",
+          "README.md"
+        ],
+        "pass_criteria": [
+          "每項實際存在或清楚說明未完成；不把未完成填成 passed。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "DOC-02",
+      "group": "deliverables",
+      "title": "bench.md 五項內容",
+      "purpose": "讓時間與記憶體紀錄可稽核。",
+      "requirement_level": "required",
+      "source_sections": [
+        "第一部分交付項目：bench.md",
+        "效能量測方式"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "審查凍結版本本次結果的彙總文件。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "dev 四欄分數；總時間、峰值 RAM、指令；P50/P95/最大值與方法。",
+          "每個實測方案在同一量測表各一列，包含 dev 分數、延遲與記憶體。",
+          "說明數字可信度；未實測方案標『評估後放棄』，不編造數字。",
+          "環境不是 8 GB 時明寫『未在 8 GB 上驗證』。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "DOC-03",
+      "group": "deliverables",
+      "title": "選型對照表至少三方案",
+      "purpose": "核對選型依據與效能欄位分工。",
+      "requirement_level": "required",
+      "source_sections": [
+        "技術選型：由你做主"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "審查 choices.md／README 第6段或目前技術選型對照表.md。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "至少三個方案，列名稱、模型／產物大小、dev 分數、採用或放棄原因。",
+          "未實測的標『評估後放棄』並附依據。",
+          "選型表不重複延遲／RAM 欄位，而引用 bench.md；dev 分數可兩邊皆列。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "DOC-04",
+      "group": "deliverables",
+      "title": "budget.md 內容與現場重現",
+      "purpose": "核對 2 GB 取捨而非只交輸出。",
+      "requirement_level": "required",
+      "source_sections": [
+        "記憶體預算演練"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "核對 MEM-01～04 的結果與命令可在另一台機器重現。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "寫明改動、真實硬限制證據、dev 四欄各掉多少、tickets 總時間與 P50/P95、平均預算是否守住。",
+          "解釋取捨與是否有欄位固定 null。",
+          "未完成項明確揭露，不用一般版峰值代替硬限制驗證。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "DOC-05",
+      "group": "deliverables",
+      "title": "README 六段、AI 紀錄與已知限制",
+      "purpose": "涵蓋面試質化審查及環境重現資訊。",
+      "requirement_level": "required",
+      "source_sections": [
+        "README 請包含這六段心得",
+        "AI 協作紀錄",
+        "聊聊你的想法",
+        "評分與審查方式"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [],
+      "steps": [
+        "確認 README 含問題發現、分工、AI 協作、Agent／Evals、限制／下一步、放棄方案。",
+        "確認安裝、權重取得、命令、失敗排查、未完成事項與資料邊界清楚。",
+        "AI 紀錄需真實且去除隱私；本清單不授權上傳原始對話。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "六段與三個反思問題有回應；工具與停止條件可說明。",
+          "保留方案 A 與衍生資產曾受 dev 影響的來源限制。",
+          "不用補造未發生的 AI 錯誤故事或把歷史成績說成此次跨電腦驗證。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    },
+    {
+      "id": "CLI-EXTRA",
+      "group": "implementation",
+      "title": "可選參數 smoke",
+      "purpose": "補充驗證目前程式宣告的參數，避免與必須支援的參數混淆。",
+      "requirement_level": "supplemental",
+      "source_sections": [
+        "目前 argparse 實作，非全部為題目強制"
+      ],
+      "depends_on": [
+        "ENV-01",
+        "ENV-02"
+      ],
+      "commands": [
+        "python3 predict.py --help",
+        "python3 ask.py --help",
+        "python3 patrol.py --help"
+      ],
+      "steps": [
+        "比對 cli_contracts。",
+        "若測可選模型方法，事先準備可信模型與對應依賴，成功與否逐個記錄。",
+        "缺模型或非法參數時須明確失敗；不要自動下載或回退成假成功。"
+      ],
+      "expected": {
+        "pass_criteria": [
+          "help 與清單相符。",
+          "只有 predict 兩位置參數、ask 問題與 --trace、patrol 無必要參數是題目明定入口。"
+        ]
+      },
+      "notes": [],
+      "result": {
+        "status": "not_run",
+        "passed": null,
+        "executed_at": null,
+        "tester": null,
+        "environment_id": null,
+        "actual_commands": [],
+        "exit_code": null,
+        "elapsed_seconds": null,
+        "peak_memory_bytes": null,
+        "metrics": {},
+        "observed_behavior": null,
+        "stdout_summary": null,
+        "stderr_summary": null,
+        "local_artifact_paths": [],
+        "issues": []
+      }
+    }
+  ]
+}

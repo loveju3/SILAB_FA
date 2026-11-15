@@ -11,6 +11,8 @@
 
 訓練來源為 history。模型資產留在本機，推論時不自動訓練或改選其他方法。
 
+完成後預設模型位於 `Solution/models/tfidf-lr.joblib`、`tfidf-svc.joblib`，各自須有同名 `.json` metadata。若改用另一台電腦已訓練的可信模型，將這兩組檔案放到相同路徑即可，不必重新訓練；只放 `.joblib` 不完整。
+
 ## BGE（方案 C）
 
 WSL／Linux 的 CPU 環境先安裝固定 CPU PyTorch，再裝其他固定依賴：
@@ -35,6 +37,26 @@ macOS 使用專案的固定 embedding 依賴，不使用上面的 Linux CPU whee
 ```
 
 `--no-compile` 可減少 Windows 掛載磁碟的 `.pyc` 寫入；不是關閉推論或略過模型安裝。下載只發生在準備階段。模型的訓練／驗證分數與正式推論資源測試分開看待。
+
+公開 encoder 預設下載到 `Solution/models/bge-small-zh-v1.5/`，內含權重、tokenizer、設定及 `encoder_manifest.json`。訓練後須有 `Solution/models/bge-lr.joblib`、`bge-svc.joblib` 與各自同名 `.json`。若搬入可信模型，分類頭、metadata 與同層 encoder 資料夾須一起搬入，不能用重新下載的任意 revision 取代配套 encoder。
+
+## 已有微調 BGE：在建立環境時放好模型
+
+微調版不是上述 `bge-lr`／`bge-svc`。取得維護者提供的 `SILAB_FA_bge_finetuned_20261115-082422.zip`，解壓至 repo 根目錄 `transfer/`；確認 `transfer/finetuned/` 下有 `model.json`、`heads.safetensors`、完整 `encoder/`。ZIP 本身不含 Python 套件，需完成前述 BGE CPU 依賴安裝；已有微調 checkpoint 時不用再跑 `train_embedding.py` 或重新 fine-tune。
+
+本機 CPU 推論（macOS／WSL）：
+
+```bash
+.venv/bin/python predict.py data/tickets.jsonl reports/finetuned_predictions.jsonl --method bge-finetuned --model-path transfer/finetuned
+```
+
+若只用 Docker 執行微調版，不必先安裝本機 ML 套件／建立其他分類模型。準備公共表與 ZIP 後，可直接使用 repo 的專用 Dockerfile：
+
+```bash
+docker build -f docs/testing/Dockerfile.finetuned -t silab-fa:finetuned-runtime-20261115 .
+```
+
+此映像不包含微調權重；執行時須將 `transfer/finetuned/` 唯讀掛到 `/model`，並指定 `--method bge-finetuned --model-path /model`。完整 Windows／Unix 掛載與 2 GiB 指令見 [微調模型移轉說明](../testing/finetuned_transfer_readme.md)。`run_budget.py`、`benchmark.py` 目前不接受 `bge-finetuned`，微調版使用該說明的直接容器命令及外部計時，不要套用下方五種方法 runner。
 
 完成對應依賴後，可執行既有開發測試入口；它預設關閉 dev 驗證：
 

@@ -2,12 +2,16 @@
 
 環境建立文件統一放在本目錄。第一次使用請先選作業系統，再依需要安裝模型依賴；功能文件中的使用範例與歷史實測紀錄不取代這裡的環境說明。
 
+要在另一台電腦跑完整驗收，請以 [完整測試環境準備清單](test-readiness.md) 逐項準備資料、分類模型、微調模型、Agent runtime 與 Docker，再回到測試入口。該清單列出下載／建立方式與放置路徑，不需要等到測試失敗才補下載模型。
+
 | 你的環境與用途 | 依循文件 |
 |---|---|
 | macOS：批次分流、CPU 模型與測試 UI | [macOS](macos.md) |
 | Windows：透過 WSL 執行批次分流、CPU 模型與 Docker 驗證 | [Windows／WSL](windows-wsl.md) |
 | Windows 原生：問答 Agent、巡檢與 Agent 測試 UI | [Windows 原生 Agent](windows-native-agent.md) |
 | macOS／WSL：安裝 TF-IDF、BGE、建立模型與 Docker 映像 | [CPU 模型與 Docker](cpu-models.md) |
+| 已有微調 BGE ZIP：放置模型、從 repo build、掛載推論 | [微調模型移轉](../testing/finetuned_transfer_readme.md) |
+| 已有打包 image：匯入與執行第一部分測試 | [可攜映像操作](../testing/portable_image_readme.md) |
 
 ## 使用前先確認
 

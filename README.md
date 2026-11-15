@@ -19,6 +19,19 @@
 
 各平台的虛擬環境與執行檔不能混用；第一部分已加入 Windows 原生峰值工作集量測相容性，規則版入口可在 Windows 執行，但不代表所有模型與完整效能實驗都已跨平台重測。macOS／WSL 的 Agent 尚無完整自動安裝流程，支援邊界已列在對應文件中。
 
+### 第一次到另一台電腦：先完成資料、模型與測試環境
+
+**只有 clone repo／安裝 Python 還不夠。** 模型、原始資料與 runtime 不隨 Git 提供。請依 [完整測試環境準備清單](docs/setup/test-readiness.md) 做完以下步驟，再開始測試：
+
+1. 選擇上述平台流程，建立該作業系統自己的 Python 環境；Windows 批次模型使用 WSL，Agent 使用 Windows 原生 Python。
+2. 將公共表放到 `data/devices.json`、`data/error_codes.json`，工單放到 `data/tickets.jsonl`；若要訓練／跑 history 評測，另備 `data/history.jsonl`。這些資料自行在本機傳送，不上傳雲端。
+3. TF-IDF 與固定 BGE 依 [CPU 模型與 Docker](docs/setup/cpu-models.md) 安裝套件、下載 encoder 並以 history 建立分類頭，或放入同版的可信模型資產。單獨下載公開 BGE 權重不等於已有分類頭。
+4. **使用已微調 BGE**：向專案維護者取得 `SILAB_FA_bge_finetuned_20261115-082422.zip`（由維護者自行放入 [共用雲端資料夾](https://drive.google.com/drive/folders/1QeCQjNet73n8FYnrJ4WLmnpGKPnNc7zt)；若未找到請索取，不由程式自動下載），解壓到 repo 根目錄的 `transfer/`。確認存在 `transfer/finetuned/model.json`、`heads.safetensors` 及完整 `encoder/`，使用 `--method bge-finetuned --model-path transfer/finetuned`；容器內則掛載至 `/model`。不用重新 fine-tune。詳細 [建置與掛載步驟](docs/testing/finetuned_transfer_readme.md)。
+5. **使用問答／巡檢 Agent**：Windows 執行 `python agent/setup.py`，讓它下載並安裝 `agent_assets/Qwen_Qwen3-1.7B-Q4_K_M.gguf`、`agent_assets/runtime/llama-server.exe` 與相依 DLL。macOS／WSL 須另備原生 runtime，詳見平台文件；BGE 模型不能替代 Agent 的 Qwen 模型。
+6. 若要跑 2 GB 測試，先安裝並啟動 Docker、完成所需映像建置或匯入，再核對 [測試項目與必要資產](docs/setup/test-readiness.md#測試前逐項確認)。安裝／下載可連網，正式推論須離線。
+
+完整準備清單同時列出每種模型的預期位置、下載／建立指令、Docker 路線與測試入口。完成準備表示具備執行條件，**不代表正確率、480／30／120 秒或記憶體限制已通過**；這些仍需在目標電腦實測。
+
 ## 1. 我怎麼發現問題的
 
 這份專案先從 baseline 的程式行為與既有彙總評分找問題，再把「設備辨識、故障分類、急迫性、重複報修」分開檢查。baseline 的限制不只在關鍵詞數量：它沒有完整處理文字正規化、同檔上下文與急迫性規則，`duplicate_of` 也固定回傳 `null`。如果只看加權總分，很容易忽略某個欄位其實完全沒有能力，因此需要同時看四欄指標、格式檢查與執行成本。

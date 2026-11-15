@@ -1,0 +1,16 @@
+# Reuse the locally prepared CPU dependency image; no download at packaging time.
+# Base image identity is recorded in the accompanying export manifest.
+FROM silab-fa:scheme-c
+WORKDIR /app
+COPY predict.py /app/predict.py
+COPY Solution/predict.py /app/Solution/predict.py
+COPY Solution/triage/ /app/Solution/triage/
+COPY Solution/config/ /app/Solution/config/
+COPY Solution/scripts/check_limits.py /app/Solution/scripts/check_limits.py
+COPY data/devices.json data/error_codes.json /app/data/
+COPY Solution/models/tfidf-lr.joblib Solution/models/tfidf-lr.json Solution/models/tfidf-svc.joblib Solution/models/tfidf-svc.json /app/Solution/models/
+COPY Solution/models/bge-lr.joblib Solution/models/bge-lr.json Solution/models/bge-svc.joblib Solution/models/bge-svc.json /app/Solution/models/
+LABEL org.opencontainers.image.title="SILAB_FA portable batch triage" \
+      org.opencontainers.image.description="Offline CPU rules, TF-IDF and BGE batch inference; input tickets are mounted separately."
+ENTRYPOINT ["python3"]
+CMD ["predict.py", "/input/tickets.jsonl", "/results/tickets_predictions.jsonl"]

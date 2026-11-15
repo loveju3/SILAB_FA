@@ -23,6 +23,19 @@ python agent/setup.py
 
 只在這個準備階段下載；正式問答不自動下載資產，不呼叫外部模型服務。
 
+環境建立完成前，確認以下路徑存在：
+
+```text
+agent_assets/
+├── Qwen_Qwen3-1.7B-Q4_K_M.gguf
+├── manifest.json
+└── runtime/
+    ├── llama-server.exe
+    └── 配套 DLL（保留 setup 解壓出的完整 runtime）
+```
+
+若從另一台已完成 setup 的 Windows 電腦搬移，保留這三部分的路徑與配套版本；不能只搬 `llama-server.exe` 或拿 Linux 執行檔替代。完整測試前置清單見 [test-readiness.md](test-readiness.md)。
+
 ## 3. 檢查命令列與評測
 
 ```powershell
