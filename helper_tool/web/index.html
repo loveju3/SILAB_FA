@@ -39,6 +39,15 @@
         <div class="formula">總分 <b>=</b> <span>0.4 × category</span> <b>+</b> 0.2 × device <b>+</b> 0.2 × urgency <b>+</b> 0.2 × duplicate</div>
       </section>
       <div id="evaluation-status" class="message" role="status" aria-live="polite" hidden></div>
+      <section class="panel experiment-comparison" aria-label="比較多筆實驗">
+        <div class="section-title"><h2>實驗比較</h2><span id="comparison-count" class="tag">尚未選取</span><button id="comparison-refresh" class="button secondary small" type="button">重新整理紀錄</button></div>
+        <p class="detail-note">勾選要並排比較的實驗。比較已保存的彙總分數與耗時，不會重新執行預測；不同資料集的分數需分開解讀。</p>
+        <div class="comparison-controls"><label class="search-control"><span>⌕</span><input id="comparison-search" placeholder="搜尋實驗名稱、方法、資料或模型路徑" aria-label="搜尋實驗紀錄"></label><button id="comparison-select" class="button secondary small" type="button">全選搜尋結果</button><button id="comparison-clear" class="button secondary small" type="button">清除勾選</button></div>
+        <p id="comparison-status" class="detail-note" role="status" aria-live="polite"></p>
+        <div class="table-scroll comparison-picker"><table class="compare-table"><thead><tr><th>比較</th><th>實驗紀錄</th><th>資料／筆數</th><th>方法／環境</th><th>加權總分</th></tr></thead><tbody id="comparison-options"></tbody></table></div>
+        <p id="comparison-warning" class="detail-note" aria-live="polite"></p>
+        <div id="comparison-results" class="table-scroll" hidden><table class="compare-table comparison-table"><thead><tr><th>實驗／方法／環境</th><th>資料／模型</th><th>加權總分</th><th>分類 macro-F1</th><th>device 正確率</th><th>urgency macro-F1</th><th>duplicate F1</th><th>總耗時（秒）</th><th>預測耗時（秒）</th></tr></thead><tbody id="comparison-rows"></tbody></table></div>
+      </section>
       <div id="empty-evaluation" class="empty panel"><div class="empty-graphic">▥</div><h2>把下一次改善，變成看得見的結果</h2><p>選擇資料集執行預測，或上傳已有的預測檔。<br>這裡會顯示分數、全部判斷，以及可以逐筆檢查的錯題。</p><span>不需輸入指令 · 原始資料不會被修改</span></div>
       <div id="results" hidden>
         <div class="result-heading"><div><span class="eyebrow">EVALUATION RESULT</span><h2 id="run-label"></h2></div><div class="download-group"><a id="download-predictions" class="button secondary" download hidden>↓ 預測 JSONL</a><a id="download-csv" class="button secondary" download>↓ 錯題 CSV</a><a id="download-json" class="button secondary" download>↓ 指標 JSON</a><a id="download-errors" class="text-link" download>錯題 JSONL</a></div></div>
@@ -69,11 +78,11 @@
         <div class="section-title"><h2>智慧問答 Agent 測試</h2><span class="tag">CPU · 離線推論</span></div>
         <form id="agent-form">
           <div class="agent-controls">
-            <div class="form-control"><label for="agent-kind">測試項目</label><select id="agent-kind"><option value="history">智慧問答 · history 開發集（12 題）</option><option value="synthetic">智慧問答 · 合成測試集（12 題）</option><option value="patrol">主動巡檢 · 合成工單契約測試</option></select></div>
+            <div class="form-control"><label for="agent-kind">測試項目</label><select id="agent-kind"><option value="history">智慧問答 · history 開發集（12 題）</option><option value="synthetic">智慧問答 · 合成測試集（依題庫題數）</option><option value="patrol-tickets">主動巡檢 · 完整 tickets 工單</option><option value="patrol">主動巡檢 · 合成工單契約測試</option></select></div>
             <div class="form-control"><label for="agent-threads">CPU threads</label><input id="agent-threads" type="number" min="1" max="12" value="6" required></div>
             <button id="agent-start" class="button primary" type="submit">執行 Agent 測試 →</button>
           </div>
-          <p class="detail-note">問答每題重新啟動並載入模型，需在 30 秒內完成；巡檢需在 120 秒內完成。兩套問答各含 6 題相同的公共對照表問題，均為開發評測。巡檢只檢查格式、引用與唯一性，不評排序品質。未套用 8 GB 硬限制。</p>
+          <p class="detail-note">問答每題重新啟動並載入模型，需在 30 秒內完成；巡檢需在 120 秒內完成。兩套問答共用原始 6 題公共對照表問題，均為開發評測。巡檢只檢查格式、引用與唯一性，不評排序品質。未套用 8 GB 硬限制。</p>
         </form>
         <p id="agent-availability" class="detail-note"></p>
       </section>
@@ -83,9 +92,16 @@
         <div class="result-heading"><div><span class="eyebrow">AGENT TEST RESULT</span><h2 id="agent-run-title"></h2></div><a id="agent-download" class="button secondary" download hidden>↓ 完整測試報告 JSON</a></div>
         <div id="agent-metrics" class="metric-grid agent-metrics"></div>
         <p id="agent-progress" class="detail-note" aria-live="polite"></p>
+        <section id="patrol-panel" class="panel agent-cases" aria-label="巡檢工單逐張檢視" hidden>
+          <div class="section-title"><h2>本次選出的優先工單</h2><span class="tag">依模型排序 · 可逐張查看</span></div>
+          <p id="patrol-source" class="detail-note"></p>
+          <div class="patrol-layout"><nav id="patrol-list" aria-label="已選工單清單"></nav><article id="patrol-detail" aria-live="polite"></article></div>
+          <div class="pagination"><span id="patrol-page"></span><div><button id="patrol-prev" class="button secondary small" type="button">← 上一張</button><button id="patrol-next" class="button secondary small" type="button">下一張 →</button></div></div>
+          <p class="detail-note">通過契約檢查代表格式、原文引用與工單唯一性符合要求；實際緊急程度與排序仍需人工確認。</p>
+        </section>
         <section class="panel agent-cases"><div class="section-title"><h2>逐題結果與耗時</h2><span class="muted">執行期間逐題更新</span></div><div class="table-scroll"><table class="compare-table agent-table"><thead><tr><th>題目</th><th>結果</th><th>預期答案</th><th>實際答案</th><th>測試時間</th></tr></thead><tbody id="agent-rows"></tbody></table></div></section>
       </div>
-      <div id="agent-empty" class="empty panel"><div class="empty-graphic">◇</div><h2>選擇測試，開始驗證問答</h2><p>執行後顯示總耗時、每題結果與預期答案。<br>重新整理頁面後，仍可選取本機保存的紀錄。</p></div>
+      <div id="agent-empty" class="empty panel"><div class="empty-graphic">◇</div><h2>選擇測試，開始驗證問答</h2><p>執行後顯示總耗時、每題結果、預期答案與設計理由。<br>重新整理頁面後，仍可選取本機保存的紀錄。</p></div>
     </section>
   <section id="page-training" class="page" hidden aria-labelledby="training-title">
     <div class="page-heading"><div><span class="eyebrow">MODEL TRAINING</span><h1 id="training-title">訓練、比較，保存每次進步<span>。</span></h1><p>選擇資料與運算環境，追蹤訓練進度，對照相同驗證段的結果。</p></div></div>
@@ -98,7 +114,7 @@
         <div class="form-control output-control"><label for="training-output">模型與紀錄保存根目錄</label><input id="training-output" value="Solution/models/training-runs" required><small>自動建立「台北日期時間戳＋唯一編號」資料夾，保存資料快照、設定、紀錄與 models/，不覆寫舊模型。</small></div>
       </div>
       <fieldset id="finetune-settings"><legend>小資料保守設定</legend><div class="training-grid">
-        <div class="form-control"><label for="train-epochs">最多 epochs（1～10）</label><input id="train-epochs" type="number" min="1" max="10" value="5" required></div>
+        <div class="form-control"><label for="train-epochs">最多 epochs（正整數）</label><input id="train-epochs" type="number" min="1" step="1" value="5" required></div>
         <div class="form-control"><label for="train-encoder-lr">Encoder 學習率</label><input id="train-encoder-lr" type="number" min="0.000001" max="0.00005" step="0.000001" value="0.00001" required></div>
         <div class="form-control"><label for="train-head-lr">分類頭學習率</label><input id="train-head-lr" type="number" min="0.0001" max="0.01" step="0.0001" value="0.001" required></div>
         <div class="form-control"><label for="train-decay">Weight decay</label><input id="train-decay" type="number" min="0.01" max="0.3" step="0.01" value="0.01" required></div>

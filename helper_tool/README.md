@@ -14,7 +14,7 @@
 
 - **評分分析**：可以直接選測試資料集、方法、執行環境及輸出資料夾，一鍵執行預測與評分；也保留上傳已有預測檔與「載入 Baseline 範例」。畫面顯示總分、四項指標、錯誤長條圖及分類混淆矩陣。自動預測後可切換「全部判斷／只看錯題」，依錯誤欄位、ID、原文或回報人篩選，逐筆對照正解、預測與建議。可下載預測 JSONL、錯題 CSV／JSONL 及指標 JSON。
 - **工單查詢**：輸入一個或多個 ticket_id，按查詢或 Enter。直接呈現原文、回報人、時間、標籤、來源檔與行號；重複工單編號可點擊追查。
-- **問答 Agent**：第二階段本機 LLM 評測，可選 history／合成問答集（各 12 題）與巡檢契約測試。背景執行，逐題顯示問題、預期答案、實際答案、通過狀態、含模型載入的時間與執行紀錄；同時顯示總耗時、逐題耗時合計及最長單題，支援選取既有工作與下載完整 JSON 報告。
+- **問答 Agent**：第二階段本機 LLM 評測，可選 history（12 題）／合成問答集（30 題）與巡檢契約測試。背景執行，逐題顯示問題、預期答案、設計理由、實際答案、通過狀態、含模型載入的時間與執行紀錄；同時顯示總耗時、逐題耗時合計及最長單題，支援選取既有工作與下載完整 JSON 報告。
 
 評分檔只在本機讀取，原始資料不會被修改。每次評分報告保留在 `helper_tool/reports/ui/<時間與唯一編號>/`；重啟後檔案仍保留，網頁上的分析狀態則不保留。評分規則及檔案檢查與下方命令列工具相同。選檔每檔上限 8 MB，請求總量上限 16 MB。
 
@@ -151,7 +151,7 @@ CPU／GPU／Modal 設定、進度與指標說明見 [訓練頁與運算環境](.
 
 先依 [Agent 操作文件](../agent/README.md) 準備本機模型與 CPU runtime，再進入左側「問答 Agent」。Windows 原生 Python 可直接執行 `python helper_tool/ui_server.py --port 8785`；既有模型訓練仍需 Linux/WSL 與原訓練依賴，現在不會因 Windows 缺少 fcntl 而阻止整個 UI 啟動。Linux/WSL 使用 Agent UI 時需在 `agent_assets/runtime/llama-server` 安裝原生 CPU 執行檔，不以 Windows exe 冒充 Linux runtime。
 
-選擇測試集與 CPU threads 後按「執行 Agent 測試」。history／synthetic 問答每題重新啟動並載入模型，30 秒內完成才可通過；巡檢契約測試要求 120 秒。兩套問答各含 6 題相同的公開對照表問題，屬於開發評測；巡檢只驗證格式、真實引用與工單唯一性，不把它當作排序準確率。UI 不提供 dev 選項，也不讀 dev 作為 Agent 語料或證據。
+選擇測試集與 CPU threads 後按「執行 Agent 測試」。history／synthetic 問答每題重新啟動並載入模型，30 秒內完成才可通過；巡檢契約測試要求 120 秒。兩套問答共用原始 6 題公開對照表問題，屬於開發評測；巡檢只驗證格式、真實引用與工單唯一性，不把它當作排序準確率。UI 不提供 dev 選項，也不讀 dev 作為 Agent 語料或證據。
 
 總耗時由背景 worker 的 perf_counter 計量，包含評測準備、逐題程序、模型載入與報告保存，不含 HTTP 傳輸、等待排程及最後的計時狀態寫入。每題時間直接使用原評測程式的 monotonic 外部程序計時；逐題合計不等於含準備／存檔的總耗時。執行中約每兩秒更新狀態，畫面上的即時總時間是進行中估計，完成後以保存的精確計時為準。
 
@@ -159,6 +159,18 @@ CPU／GPU／Modal 設定、進度與指標說明見 [訓練頁與運算環境](.
 
 每次紀錄存放於 Git 忽略的 `helper_tool/reports/agent/<台北時間與唯一編號>/`：`status.json` 保存逐題進度與總耗時、`report.json` 保存原始評測與版本／來源資料、`runner.log`／`runner.stderr.log`／`worker.log` 保存本機執行紀錄。完整 trace 可能包含 history 內容，只留本機，不加入 Git。
 
-API 為 `POST /api/agent/jobs`（kind=history／synthetic／patrol、threads=1..12），`GET /api/agent/jobs`、`GET /api/agent/jobs?id=工作ID` 與 `GET /api/agent/report?id=工作ID`。沿用 localhost／Origin 保護，不接受自訂命令、任意路徑或 dev。CLI 仍可單獨執行；`evals/run.py --events` 額外提供 JSONL 進度事件給 UI，不改變模型決策或評分。
+巡檢可選「完整 tickets 工單」或原有合成契約測試。目前以 `devices.json` 中 critical=true 設備的編號／名稱／型號匹配工單作候選，再依完整原文的安全詞種類數與回報時間縮選最多 30 張，由 LLM 排出前 10 張，以保留 120 秒測試上限。報告記錄候選池與模型候選數量，超時會如實判失敗。完成後在原結果表格上方逐張查看選中的工單，可點清單或使用上一張／下一張，顯示優先程度、理由、回報人、時間、完整原文與原始四欄 JSON。來源位置顯示原始檔第幾筆／總筆數，以及 JSONL 實際行號，與模型排序分開；新報告保存來源 SHA256 與選中工單快照，避免之後檔案變動造成對應錯誤。合成 SYN 工單不對應正式 2000 筆；舊報告未保存的原文與行號不事後猜補。原本結果表格、執行紀錄與 JSON 下載繼續保留。
+
+API 為 `POST /api/agent/jobs`（kind=history／synthetic／patrol／patrol-tickets、threads=1..12），其中 patrol 為合成巡檢、patrol-tickets 使用 `data/tickets.jsonl`。另提供 `GET /api/agent/jobs`、`GET /api/agent/jobs?id=工作ID` 與 `GET /api/agent/report?id=工作ID`。沿用 localhost／Origin 保護，不接受自訂命令、任意路徑或 dev。CLI 仍可單獨執行；`evals/run.py --events` 額外提供 JSONL 進度事件給 UI，不改變模型決策或評分。
 
 驗證：`python -X utf8 -m unittest helper_tool.test_agent_jobs helper_tool.test_ui -v`、`node helper_tool/web/test_agent_render.cjs`。本次另經正式 UI API 跑完真實 Qwen 合成問答 12 題：11/12，總耗時 169.043 秒、逐題合計 167.396 秒；不以過往 CLI 耗時冒充 UI 本次耗時。前端單元測試涵蓋時間、答錯狀態、HTML 跳脫、展開紀錄在輪詢時保留。瀏覽器鍵鼠驗證曾因工具無法確認網址而被停止，因此未宣稱已完成目視或跨螢幕驗證。
+
+## 多筆實驗比較
+
+評分分析頁新增「實驗比較」，列出 `helper_tool/reports/ui/` 已保存的實驗。勾選多筆後，即時並排顯示加權總分、分類 macro-F1、設備正確率、urgency macro-F1、duplicate F1、總耗時與預測耗時。支援搜尋實驗名稱／方法／資料／模型路徑、全選搜尋結果、清除勾選及重新整理。
+
+比較表同時保留方法、執行環境、資料名稱與筆數；「模型與資料識別」可展開模型路徑與資料 SHA-256。資料雜湊不同會提示；舊紀錄沒有資料雜湊，不能僅憑檔名與筆數斷言是同一份資料。新建評分／預測工作會在 `run.json` 保存資料 SHA-256 與建立時間，不重算舊紀錄的分數或補讀舊資料。未評分、缺少的指標／耗時分別顯示「未評分」或「—」，不當成零分。不同環境的耗時包含各自程序／容器啟動範圍，不直接視為純模型延遲。
+
+API 為 `GET /api/experiments`，只讀取各次 `run.json` 與 `summary.json`，只回傳白名單中的彙總指標及來源設定，不開啟預測 JSONL、錯題、原始 dev 或逐筆輸出。比較功能不執行推論、訓練或付費雲端工作；不改變 dev 僅供固定版本驗證的規範。
+
+2026-11-15 驗證：26 項相關 Python 測試中 25 項通過、1 項 dev opt-in 驗證略過；比較與既有 Agent 前端渲染測試通過。實際瀏覽器已驗證兩筆 history 實驗勾選、搜尋、清除與全選搜尋結果，並顯示比較表。

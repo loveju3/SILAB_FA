@@ -13,7 +13,7 @@ import uuid
 
 from .common import FIELDS, ROOT, read_records
 from .evaluate import analyze, write_reports
-from Solution.triage.io import read_tickets
+from Solution.triage.io import read_tickets, file_sha256
 
 METHODS = {"solution-a": "predict.py", "baseline": "baseline/predict.py",
            "tfidf-lr": "predict.py", "tfidf-svc": "predict.py", "bge-lr": "predict.py", "bge-svc": "predict.py", "bge-finetuned": "predict.py"}
@@ -171,6 +171,7 @@ def run_experiment(payload: dict, reports: Path) -> dict:
         else:
             run.mkdir(parents=True)
         metadata = {"dataset": label, "output_path": str(output), "filename": filename,
+                    "dataset_sha256": file_sha256(source), "created_at": datetime.now(TAIPEI).isoformat(),
                     "scored": summary is not None, "count": len(rows), "timezone": "Asia/Taipei",
                     **execution}
         created = False

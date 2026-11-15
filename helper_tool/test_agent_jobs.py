@@ -53,6 +53,8 @@ class AgentJobsTest(unittest.TestCase):
         with patch.object(jobs, "availability", return_value={"ready": True}), patch.object(jobs.subprocess, "Popen", return_value=process) as launch:
             result = jobs.start_job({"kind": "synthetic", "threads": 4})
             self.assertEqual(result["state"], "queued")
+            fixture = json.loads((jobs.ROOT / "evals/fixtures.json").read_text(encoding="utf-8"))
+            self.assertEqual(result["total"], len(fixture["cases"]))
             self.assertIn("helper_tool.agent_jobs", launch.call_args.args[0])
             self.assertEqual(jobs.list_jobs()[0]["job_id"], result["job_id"])
             with self.assertRaisesRegex(ValueError, "已有"):
@@ -75,7 +77,7 @@ class AgentJobsTest(unittest.TestCase):
         body = '''import json,sys
 from pathlib import Path
 output=Path(sys.argv[sys.argv.index('--output')+1])
-case={'id':'synthetic-one','question':'合成題','expected':2,'actual':{'answer':1,'evidence':[]},'passed':False,'elapsed_s':0.001,'exit_code':0}
+case={'id':'synthetic-one','question':'合成題','rationale':'驗證條件交集','expected':2,'actual':{'answer':1,'evidence':[]},'passed':False,'elapsed_s':0.001,'exit_code':0}
 print(json.dumps({'event':'started','total':1}),flush=True)
 print(json.dumps({'event':'case','case':case}),flush=True)
 '''
@@ -90,6 +92,7 @@ print(json.dumps({'event':'case','case':case}),flush=True)
         self.assertEqual(result["state"], "completed")
         self.assertEqual((result["completed"], result["passed"]), (1, 0))
         self.assertEqual(result["cases"][0]["question"], "合成題")
+        self.assertEqual(result["cases"][0]["rationale"], "驗證條件交集")
         self.assertEqual(result["timing"]["test_seconds"], .001)
         self.assertGreater(result["timing"]["total_seconds"], .001)
         self.assertIsNotNone(result["report_url"])
@@ -115,6 +118,37 @@ print(json.dumps({'event':'case','case':case}),flush=True)
             jobs.worker(JOB_ID)
         self.assertLess(time.monotonic() - started, 5)
         self.assertEqual(jobs.get_job(JOB_ID)["state"], "failed")
+
+    def test_legacy_patrol_never_invents_real_ticket_provenance(self):
+        folder = self.seed("completed")
+        job = json.loads((folder / "status.json").read_text(encoding="utf-8"))
+        job["kind"] = "patrol"
+        jobs.save(folder / "status.json", job)
+        jobs.save(folder / "report.json", {"output": [{"ticket_id": "SYN001", "priority": "high", "reason": "合成"}]})
+        result = jobs.get_job(JOB_ID)
+        self.assertEqual(result["patrol"]["source_info"]["dataset"], "synthetic")
+        self.assertNotIn("record", result["patrol"]["selected_tickets"][0])
+
+    def test_real_patrol_worker_preserves_selected_source_records(self):
+        folder = self.seed()
+        job = json.loads((folder / "status.json").read_text(encoding="utf-8"))
+        job.update(kind="patrol-tickets", total=1)
+        jobs.save(folder / "status.json", job)
+        (self.root / "evals").mkdir()
+        script = '''import json,sys
+from pathlib import Path
+assert sys.argv[sys.argv.index('--dataset')+1]=='tickets'
+report={'source_info':{'dataset':'tickets','count':2000,'file':'data/tickets.jsonl'},'selected_tickets':[{'ticket_id':'FAKE_A','rank':1,'record_index':1750,'source_line':1752,'record':{'ticket_id':'FAKE_A','raw_text':'synthetic'}}],'output':[],'contract_passed':True,'elapsed_s':0.01}
+Path(sys.argv[sys.argv.index('--output')+1]).write_text(json.dumps(report),encoding='utf-8')
+print('patrol contract: PASS')
+'''
+        (self.root / "evals/run_patrol.py").write_text(script, encoding="utf-8")
+        with patch.object(jobs, "ROOT", self.root):
+            jobs.worker(JOB_ID)
+        result = jobs.get_job(JOB_ID)
+        self.assertEqual(result["state"], "completed")
+        self.assertEqual(result["patrol"]["selected_tickets"][0]["record_index"], 1750)
+        self.assertIn("2000", result["cases"][0]["question"])
 
 
 class AgentHTTPTest(unittest.TestCase):

@@ -2,7 +2,7 @@
 """Local, dependency-free UI for scoring and ticket lookup."""
 import argparse
 from contextlib import redirect_stdout
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
@@ -29,6 +29,8 @@ from baseline.predict import main as baseline_predict
 # experiments uses package-relative imports, also when this server is a script.
 from helper_tool.experiments import run_experiment
 from helper_tool import agent_jobs
+from helper_tool.comparison import list_experiments
+from Solution.triage.io import file_sha256
 
 
 def training_action(action, *args):
@@ -84,6 +86,7 @@ def evaluate_upload(payload):
             predictions.write_text(content, encoding="utf-8")
             label = str(payload.get("prediction_name") or "predictions.jsonl")[:200]
         summary, errors, official_output = analyze(predictions, gold)
+        dataset_sha256 = file_sha256(gold)
         # Temporary upload paths are not useful provenance after this request.
         summary["prediction_file"] = label
         gold_label = str(payload.get("gold_name") or "自訂標準答案")[:200] if gold_name == "custom" else str(gold)
@@ -94,7 +97,11 @@ def evaluate_upload(payload):
         write_reports(RUNS / run_id, summary, errors, official_output)
     timing = {"total_seconds": perf_counter() - started, "prediction_seconds": prediction_seconds}
     (RUNS / run_id / "run.json").write_text(
-        json.dumps({"label": label, "timing": timing}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        json.dumps({"label": label, "timing": timing, "dataset": gold_label,
+                    "dataset_sha256": dataset_sha256, "count": summary['gold_count'],
+                    "method": 'baseline' if payload.get('baseline') is True else 'uploaded',
+                    "created_at": datetime.now(timezone(timedelta(hours=8))).isoformat()},
+                   ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return {"summary": summary, "errors": errors, "label": label, "run_id": run_id,
             "timing": timing,
             "downloads": {name: f"/reports/{run_id}/{name}" for name in sorted(DOWNLOADS)}}
@@ -146,6 +153,8 @@ class Handler(BaseHTTPRequestHandler):
                     sources.append({"name": name, "count": count, "available": path.is_file()})
                 self.respond({"sources": sources, "default_output_dir": str(ROOT / "Solution/predictions"),
                               "devices": json.loads((ROOT / "data/devices.json").read_text(encoding="utf-8"))})
+            elif url.path == "/api/experiments":
+                self.respond(list_experiments(RUNS))
             elif url.path == "/api/training":
                 job_id = parse_qs(url.query).get("id", [None])[0]
                 self.respond(training_action("get_job", job_id) if job_id else {"jobs": training_action("list_jobs")})

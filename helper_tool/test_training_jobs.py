@@ -29,7 +29,8 @@ class TrainingJobsTest(unittest.TestCase):
 
     def test_settings_reject_invalid_or_excessive_values(self):
         self.assertEqual(FineTuneSettings.from_dict().encoder_lr, 1e-5)
-        for values in ({'epochs': True}, {'epochs': 100}, {'encoder_lr': .1}, {'dropout': float('nan')},
+        self.assertEqual(FineTuneSettings.from_dict({'epochs': 100}).epochs, 100)
+        for values in ({'epochs': True}, {'epochs': 0}, {'epochs': -1}, {'epochs': 1.5}, {'encoder_lr': .1}, {'dropout': float('nan')},
                        {'batch_size': 1.2}, {'max_length': True}, {'weight_decay': 0}, {'unknown': 1}, []):
             with self.subTest(values=values), self.assertRaises(ValueError):
                 FineTuneSettings.from_dict(values)

@@ -17,7 +17,8 @@ from Solution.triage.io import atomic_write
 from agent.process import ChildGuard
 
 REGISTRY = ROOT / "helper_tool/reports/agent"
-KINDS = {"history", "synthetic", "patrol"}
+PATROL_KINDS = {"patrol", "patrol-tickets"}
+KINDS = {"history", "synthetic", *PATROL_KINDS}
 TERMINAL = {"completed", "failed", "interrupted"}
 _lock = threading.Lock()
 
@@ -106,6 +107,11 @@ def get_job(job_id):
     else:
         job["elapsed_seconds"] = job.get("timing", {}).get("total_seconds")
     job["report_url"] = f"/api/agent/report?id={job_id}" if job["state"] == "completed" and (folder / "report.json").is_file() else None
+    if job["kind"] in PATROL_KINDS and "patrol" not in job and (folder / "report.json").is_file() and job["state"] in TERMINAL:
+        report = json.loads((folder / "report.json").read_text(encoding="utf-8"))
+        job["patrol"] = {"source_info": report.get("source_info", {"dataset": "synthetic", "count": 12,
+                         "file": "歷史合成測試（未保存來源快照）"}),
+                         "selected_tickets": report.get("selected_tickets", report.get("output") or [])}
     return job
 
 
@@ -113,7 +119,7 @@ def list_jobs():
     if not REGISTRY.exists():
         return []
     folders = [p for p in sorted(REGISTRY.iterdir(), reverse=True) if p.is_dir() and (p / "status.json").exists()][:30]
-    return [{k: v for k, v in get_job(p.name).items() if k != "cases"} for p in folders]
+    return [{k: v for k, v in get_job(p.name).items() if k not in {"cases", "patrol"}} for p in folders]
 
 
 def availability():
@@ -125,13 +131,15 @@ def availability():
 def start_job(payload):
     kind, threads = payload.get("kind", "history"), payload.get("threads", 6)
     if not isinstance(kind, str) or kind not in KINDS or set(payload) - {"kind", "threads"}:
-        raise ValueError("請選擇 history、synthetic 或 patrol，不接受 dev 或自訂命令")
+        raise ValueError("請選擇 history、synthetic、patrol 或 patrol-tickets，不接受 dev 或自訂命令")
     if type(threads) is not int or not 1 <= threads <= 12:
         raise ValueError("CPU threads 必須是 1～12 的整數")
     if not availability()["ready"]:
         raise ValueError("缺少本機 Qwen 模型或 CPU runtime。Windows 請先執行 python agent/setup.py；Linux/WSL 需原生 llama-server。")
     if kind == "history" and not (ROOT / "data/history.jsonl").is_file():
         raise ValueError("找不到開發用 history.jsonl")
+    if kind == "patrol-tickets" and not (ROOT / "data/tickets.jsonl").is_file():
+        raise ValueError("找不到正式巡檢來源 data/tickets.jsonl")
     with registry_lock():
         if any(job["state"] not in TERMINAL for job in list_jobs()):
             raise ValueError("已有 Agent 測試進行中，請等待完成以避免 CPU 互相影響")
@@ -140,7 +148,10 @@ def start_job(payload):
         folder.mkdir()
         job = {"job_id": job_id, "kind": kind, "threads": threads, "state": "queued",
                "created_at": datetime.now(timezone.utc).isoformat(), "message": "等待啟動 Agent 測試",
-               "total": 1 if kind == "patrol" else 12, "completed": 0, "passed": 0, "cases": [], "timing": {}}
+               "total": (1 if kind in PATROL_KINDS else
+                         len(json.loads((ROOT / "evals/fixtures.json").read_text(encoding="utf-8"))["cases"])
+                         if kind == "synthetic" else 12),
+               "completed": 0, "passed": 0, "cases": [], "timing": {}}
         save(folder / "status.json", job)
         command = [sys.executable, "-u", "-m", "helper_tool.agent_jobs", "--worker", job_id]
         try:
@@ -166,10 +177,13 @@ def worker(job_id):
     process, guard, timer = None, None, None
     report_path = folder / "report.json"
     try:
-        script = "run_patrol.py" if job["kind"] == "patrol" else "run.py"
+        is_patrol = job["kind"] in PATROL_KINDS
+        script = "run_patrol.py" if is_patrol else "run.py"
         command = [sys.executable, "-u", str(ROOT / "evals" / script), "--output", str(report_path), "--threads", str(job["threads"])]
         command.extend(["--server", availability()["server"]])
-        if job["kind"] != "patrol":
+        if is_patrol:
+            command.extend(["--dataset", "tickets" if job["kind"] == "patrol-tickets" else "synthetic"])
+        else:
             command.extend(["--suite", job["kind"], "--events"])
         def stop():
             if process is not None and process.poll() is None:
@@ -187,13 +201,13 @@ def worker(job_id):
                 text=True, encoding="utf-8", env={**os.environ, "PYTHONIOENCODING": "utf-8"},
                 start_new_session=os.name != "nt", creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
             guard = ChildGuard(process)
-            timer = threading.Timer(130 if job["kind"] == "patrol" else 420, stop)
+            timer = threading.Timer(130 if is_patrol else 32 * job["total"] + 36, stop)
             timer.daemon = True
             timer.start()
             for line in process.stdout:
                 log.write(line)
                 log.flush()
-                if job["kind"] == "patrol":
+                if is_patrol:
                     continue
                 event = json.loads(line)
                 if event["event"] == "started":
@@ -211,8 +225,11 @@ def worker(job_id):
             detail = (folder / "runner.stderr.log").read_text(encoding="utf-8")[-1800:]
             raise RuntimeError(f"評測程序退出 {code}，未產生完整報告。{detail}")
         report = json.loads(report_path.read_text(encoding="utf-8"))
-        if job["kind"] == "patrol":
-            job["cases"] = [{"id": "patrol-contract", "question": "從12張合成工單選10張；檢查格式、原文引用與唯一性（不評排序品質）",
+        if is_patrol:
+            source = report.get("source_info", {"count": 12, "dataset": "synthetic"})
+            job["patrol"] = {"source_info": source, "selected_tickets": report.get("selected_tickets", [])}
+            label = "正式工單" if source["dataset"] == "tickets" else "合成工單"
+            job["cases"] = [{"id": "patrol-contract", "question": f"從{source['count']}張{label}選10張；檢查格式、原文引用與唯一性（不評排序品質）",
                 "expected": "10張不重複工單，引用均來自原文，120秒內完成", "actual": {"answer": report.get("output")},
                 "passed": report["contract_passed"], "elapsed_s": report["elapsed_s"], "trace": report.get("trace", ""), "error": report.get("error")}]
         else:

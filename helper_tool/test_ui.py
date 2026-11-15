@@ -61,6 +61,8 @@ class UITest(unittest.TestCase):
         self.assertIsNone(result["timing"]["prediction_seconds"])
         saved = json.loads((self.runs / result["run_id"] / "run.json").read_text())
         self.assertEqual(saved["timing"], result["timing"])
+        self.assertEqual(len(saved['dataset_sha256']), 64)
+        self.assertEqual(saved['count'], 1)
         self.assertNotEqual(result["run_id"], ui_server.evaluate_upload(payload)["run_id"])
 
     def test_baseline_custom_data_includes_prediction_duration(self):
@@ -76,6 +78,25 @@ class UITest(unittest.TestCase):
             with self.subTest(payload=payload), self.assertRaises(ValueError):
                 ui_server.evaluate_upload(payload)
         self.assertEqual(list(self.runs.iterdir()), [])
+
+    def test_experiment_history_endpoint_returns_aggregate_metadata(self):
+        folder = self.runs / '20261115-080000-aaaaaaaa'
+        folder.mkdir()
+        (folder / 'run.json').write_text(json.dumps({'label': 'synthetic experiment'}), encoding='utf-8')
+        (folder / 'summary.json').write_text(json.dumps({'total': .5, 'metrics': {'category': .4},
+                                                        'raw_text': 'must-not-return'}), encoding='utf-8')
+        server = ui_server.LocalHTTPServer(('127.0.0.1', 0), ui_server.Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            with urlopen(f'http://127.0.0.1:{server.server_port}/api/experiments', timeout=3) as response:
+                result = json.load(response)
+            self.assertEqual(result['experiments'][0]['total'], .5)
+            self.assertNotIn('raw_text', result['experiments'][0])
+        finally:
+            server.shutdown()
+            server.server_close()
+            worker.join(timeout=3)
 
     def test_unlabelled_answers_do_not_produce_reports(self):
         with self.assertRaisesRegex(ValueError, "缺少標籤"):

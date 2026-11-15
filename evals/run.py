@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cold-process Evals: synthetic records only; saves local, versioned reports."""
+"""Cold-process development Evals; saves local, versioned reports."""
 import argparse
 from datetime import datetime, timezone
 import hashlib
@@ -22,9 +22,31 @@ def digest(path):
     return h.hexdigest()
 
 
+def grade_answer(case, answer, ids):
+    """Score outputs, never treat a process error or null output as a refusal."""
+    if not isinstance(answer, dict) or "answer" not in answer:
+        return False
+    evidence = answer.get("evidence")
+    if (not isinstance(evidence, list) or len(evidence) > 20 or
+            not all(isinstance(key, str) and key in ids for key in evidence) or
+            len(evidence) != len(set(evidence))):
+        return False
+    needs_evidence = case.get("evidence_required",
+        not case["id"].startswith("public-") and case["answer"] not in (0, []))
+    if needs_evidence and not evidence:
+        return False
+    if "expected_evidence" in case and set(evidence) != set(case["expected_evidence"]):
+        return False
+    if "allowed_tools" in case:
+        used = answer.get("tools_used")
+        if not isinstance(used, list) or any(tool not in case["allowed_tools"] for tool in used):
+            return False
+    return type(answer["answer"]) is type(case["answer"]) and answer["answer"] == case["answer"]
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--case", help="只跑指定 case ID；不指定時跑全部12題")
+    parser.add_argument("--case", help="只跑指定 case ID；不指定時跑該測試集全部題目")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--threads", type=int, default=6)
     parser.add_argument("--suite", choices=["synthetic", "history"], default="synthetic")
@@ -50,6 +72,8 @@ def main():
     report = {"created_at": datetime.now(timezone.utc).isoformat(), "git_revision": version,
               "source_sha256": {str(p.relative_to(ROOT)): digest(p) for p in source_paths},
               "fixture_sha256": digest(fixture_path), "suite": args.suite, "source": fixture["provenance"],
+              "evaluation_data_sha256": {str(p.relative_to(ROOT)): digest(p) for p in
+                  [ROOT / "evals/fixtures.json", ROOT / "data/devices.json", ROOT / "data/error_codes.json"]},
               "config": {"threads": args.threads, "timeout_s": 29, "context": 4096,
                          "max_steps": 4, "thinking": False, "server": str(args.server) if args.server else "default"},
               "model_sha256": digest(model) if model.exists() else None, "cases": []}
@@ -66,20 +90,16 @@ def main():
                        "--threads", str(args.threads), "--trace"]
             if args.server:
                 command.extend(["--server", str(args.server)])
-            row = {"id": case["id"], "question": case["question"], "expected": case["answer"]}
+            row = {"id": case["id"], "question": case["question"], "expected": case["answer"],
+                   **{key: case[key] for key in ("rationale", "category", "evidence_required",
+                       "expected_evidence", "allowed_tools") if key in case}}
             try:
                 result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
                                         timeout=32, env={**os.environ, "PYTHONIOENCODING": "utf-8"})
                 row.update(exit_code=result.returncode, trace=result.stderr)
                 answer = json.loads(result.stdout) if result.returncode == 0 else None
                 row["actual"] = answer
-                evidence = answer.get("evidence", []) if answer else []
-                needs_evidence = not case["id"].startswith("public-") and case["answer"] not in (0, [])
-                valid = (isinstance(evidence, list) and len(evidence) <= 20 and
-                         all(isinstance(key, str) and key in ids for key in evidence) and
-                         len(evidence) == len(set(evidence)) and (bool(evidence) or not needs_evidence))
-                row["passed"] = bool(answer and type(answer["answer"]) is type(case["answer"]) and
-                                     answer["answer"] == case["answer"] and valid)
+                row["passed"] = grade_answer(case, answer, ids)
             except (subprocess.TimeoutExpired, ValueError, KeyError) as exc:
                 row.update(passed=False, error=str(exc))
             row["elapsed_s"] = round(time.monotonic() - started, 3)
@@ -89,6 +109,8 @@ def main():
                 print(json.dumps({"event": "case", "case": row}, ensure_ascii=False), flush=True)
             else:
                 print(f"{case['id']}: {'PASS' if row['passed'] else 'FAIL'} {row['elapsed_s']:.3f}s", flush=True)
+                print(f"  預期答案：{json.dumps(case['answer'], ensure_ascii=False)}", flush=True)
+                print(f"  設計理由：{case.get('rationale', '舊題目未記錄設計理由')}", flush=True)
     report["passed"] = sum(c["passed"] for c in report["cases"])
     report["total"] = len(cases)
     output = args.output or ROOT / "evals/results" / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + ".json")

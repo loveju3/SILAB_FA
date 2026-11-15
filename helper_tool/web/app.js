@@ -10,7 +10,7 @@ function formatValue(value){return esc(valueText(value));}
 function scoreText(summary){return `加權總分 ${summary.total.toFixed(6)} · 分類 macro-F1 ${summary.metrics.category.toFixed(6)}`;}
 function message(id, text, error=false){const el=$(id);el.textContent=text;el.hidden=!text;el.classList.toggle('error',error);}
 async function api(url, options){let response;try{response=await fetch(url, options);}catch{throw new Error('無法連線到本機工具。請確認啟動工具的視窗仍開啟。');}const data=await response.json();if(!response.ok)throw new Error(data.error || '操作失敗');return data;}
-function navigate(page){document.querySelectorAll('.page').forEach(el=>el.hidden=el.id!==`page-${page}`);document.querySelectorAll('.nav').forEach(el=>{el.classList.toggle('active',el.dataset.page===page);el.setAttribute('aria-current',el.dataset.page===page?'page':'false');});$('breadcrumb').textContent=({lookup:'工單查詢',agent:'智慧問答 Agent',training:'模型訓練'})[page]||'評分分析';history.replaceState(null,'',`#${page}`);if(page==='agent')refreshAgent();else clearTimeout(agentTimer);if(page==='training')refreshTraining();else clearTimeout(trainingTimer);}
+function navigate(page){document.querySelectorAll('.page').forEach(el=>el.hidden=el.id!==`page-${page}`);document.querySelectorAll('.nav').forEach(el=>{el.classList.toggle('active',el.dataset.page===page);el.setAttribute('aria-current',el.dataset.page===page?'page':'false');});$('breadcrumb').textContent=({lookup:'工單查詢',agent:'智慧問答 Agent',training:'模型訓練'})[page]||'評分分析';history.replaceState(null,'',`#${page}`);if(page==='agent')refreshAgent();else clearTimeout(agentTimer);if(page==='training')refreshTraining();else clearTimeout(trainingTimer);if(page==='evaluate')refreshExperiments();}
 document.querySelectorAll('.nav').forEach(el=>el.addEventListener('click',()=>navigate(el.dataset.page)));
 function setFile(file){if(!file)return;state.predictionFile=file;$('file-label').textContent=file.name;$('file-hint').textContent=`${(file.size/1024).toFixed(1)} KB · 已選取，按「開始評分」`;$('evaluation-status').hidden=true;}
 $('prediction-file').addEventListener('change',e=>setFile(e.target.files[0]));
@@ -48,7 +48,7 @@ function acceptResult(result){
   $('result-filter').querySelector('[value="all"]').disabled=!result.records;
   $('result-filter').querySelector('[value="errors"]').disabled=!result.summary;
   $('field-filter').disabled=!result.summary;
-  renderResults();
+  renderResults();refreshExperiments();
 }
 $('test-dataset').addEventListener('change',()=>{$('test-file-label').hidden=$('test-dataset').value!=='custom';});
 $('test-file').addEventListener('change',()=>{$('test-file-label').textContent=$('test-file').files[0]?.name||'選擇測試資料檔';});
@@ -214,24 +214,53 @@ $('training-form').addEventListener('submit',async event=>{
 // Agent evaluations are independent persisted workers, so browser refreshes
 // never reset the measured time or terminate a model evaluation.
 let agentTimer=null, agentStarting=false, agentRowsKey='';
-const agentKinds={history:'智慧問答 · history',synthetic:'智慧問答 · 合成測試',patrol:'主動巡檢 · 契約測試'};
+let patrolItems=[],patrolSource={},patrolIndex=0,patrolRenderKey='';
+const agentKinds={history:'智慧問答 · history',synthetic:'智慧問答 · 合成測試',patrol:'主動巡檢 · 合成契約測試','patrol-tickets':'主動巡檢 · 完整工單'};
 const agentStates={queued:'等待中',running:'測試中',completed:'完成',failed:'執行失敗',interrupted:'已中斷'};
 function agentSeconds(value){return typeof value==='number'?`${value.toFixed(3)} 秒`:'—';}
+function selectPatrol(index){
+  if(!patrolItems.length)return;
+  patrolIndex=Math.max(0,Math.min(index,patrolItems.length-1));
+  const item=patrolItems[patrolIndex],record=item.record;
+  const priority=({high:'高',medium:'中',low:'低'})[item.priority]||'未提供';
+  $('patrol-detail').innerHTML=`<div class="ticket-card-head"><h2>${esc(item.ticket_id)}</h2><span class="pill ${item.priority==='high'?'patrol-high':''}">優先程度：${esc(priority)}</span></div><p class="provenance">模型排序第 ${patrolIndex+1} 名${record?` · 來源第 ${esc(item.record_index)} / ${esc(patrolSource.count)} 筆 · JSONL 第 ${esc(item.source_line)} 行`:''}</p>${record?`<div class="ticket-meta"><span>回報人：${esc(record.reporter)}</span><span>回報時間：${esc(record.created_at)}</span></div><h3>工單原文</h3><div class="raw-text">${esc(record.raw_text)}</div>`:'<p class="detail-note">舊報告未保存原始工單與行號，無法補出可靠對應。重新執行可保存來源快照與原文。</p>'}<h3>優先處理理由</h3><p class="patrol-reason">${esc(item.reason)}</p>${record?`<details class="raw-json"><summary>原始輸入四欄 JSON</summary><pre>${esc(JSON.stringify(record,null,2))}</pre></details>`:''}`;
+  $('patrol-page').textContent=`第 ${patrolIndex+1} / ${patrolItems.length} 張`;
+  $('patrol-prev').disabled=patrolIndex===0;$('patrol-next').disabled=patrolIndex===patrolItems.length-1;
+  $('patrol-list').querySelectorAll('[data-patrol-index]').forEach(button=>{
+    const active=Number(button.dataset.patrolIndex)===patrolIndex;
+    button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
+  });
+}
+function renderPatrol(job){
+  const isPatrol=['patrol','patrol-tickets'].includes(job.kind);
+  const items=job.patrol?.selected_tickets||job.cases?.[0]?.actual?.answer||[];
+  $('patrol-panel').hidden=!isPatrol||!Array.isArray(items)||!items.length;
+  if($('patrol-panel').hidden){patrolRenderKey='';return;}
+  const key=`${job.job_id}:${job.state}:${job.completed}:${items.length}:${Boolean(items[0]?.record)}`;
+  if(key===patrolRenderKey)return;
+  patrolRenderKey=key;patrolItems=items;patrolSource=job.patrol?.source_info||{dataset:'synthetic',count:12};
+  const real=patrolSource.dataset==='tickets';
+  $('patrol-source').textContent=real?`來源：${patrolSource.file} · 共 ${patrolSource.count} 筆。位置與原文取自本次執行的來源快照；SHA256：${patrolSource.sha256}`:`合成測試 · ${patrolSource.count} 筆；SYN 編號不對應正式 2,000 筆工單。要對照真實資料，請選「主動巡檢 · 完整 tickets 工單」重新執行。`;
+  $('patrol-list').innerHTML=items.map((item,index)=>`<button class="patrol-ticket-button" type="button" data-patrol-index="${index}"><span>#${index+1} ${esc(item.ticket_id)}</span><small>${esc(({high:'高優先',medium:'中優先',low:'低優先'})[item.priority]||'未提供')}</small></button>`).join('');
+  $('patrol-list').querySelectorAll('[data-patrol-index]').forEach(button=>button.addEventListener('click',()=>selectPatrol(Number(button.dataset.patrolIndex))));
+  selectPatrol(0);
+}
 function renderAgent(job){
   $('agent-results').hidden=false;$('agent-empty').hidden=true;
-  const active=['queued','running'].includes(job.state), rows=job.cases||[];
+  const active=['queued','running'].includes(job.state), rows=job.cases||[],isPatrol=['patrol','patrol-tickets'].includes(job.kind);
   const total=job.timing?.total_seconds;
   const maximum=rows.length?Math.max(...rows.map(row=>row.elapsed_s)):null;
   $('agent-run-title').textContent=`${agentKinds[job.kind]} · ${agentStates[job.state]}`;
   $('agent-progress').textContent=`已完成 ${job.completed} / ${job.total} · CPU ${job.threads} threads · 紀錄 ${job.job_id}`;
   $('agent-download').hidden=!job.report_url;if(job.report_url)$('agent-download').href=job.report_url;
-  const cards=[['總耗時',agentSeconds(active?job.elapsed_seconds:total),active?'進行中，完成後保存精確總耗時':'含資料準備、逐題執行與報告儲存'],['通過題數',`${job.passed} / ${job.completed}`,job.kind==='patrol'?'契約檢查，不是排序準確率':`共 ${job.total} 題；未完成題目不列入分母`],['逐題耗時合計',agentSeconds(job.timing?.test_seconds),'每題含程序啟動與模型載入'],['最長單題',agentSeconds(maximum),job.kind==='patrol'?'巡檢上限 120 秒':'問答上限 30 秒']];
+  const cards=[['總耗時',agentSeconds(active?job.elapsed_seconds:total),active?'進行中，完成後保存精確總耗時':'含資料準備、逐題執行與報告儲存'],['通過題數',`${job.passed} / ${job.completed}`,isPatrol?'契約檢查，不是排序準確率':`共 ${job.total} 題；未完成題目不列入分母`],['逐題耗時合計',agentSeconds(job.timing?.test_seconds),'每題含程序啟動與模型載入'],['最長單題',agentSeconds(maximum),isPatrol?'巡檢上限 120 秒':'問答上限 30 秒']];
   $('agent-metrics').innerHTML=cards.map(([title,value,note])=>`<div class="metric-card"><div class="metric-name">${esc(title)}</div><div class="metric-value precise">${esc(value)}</div><div class="metric-desc">${esc(note)}</div></div>`).join('');
   const rowsKey=`${job.job_id}:${job.completed}:${job.state}`;
   if(rowsKey!==agentRowsKey){$('agent-rows').innerHTML=rows.length?rows.map(row=>{
-    const actual=row.actual?.answer, brief=valueText(actual), error=row.error||(row.exit_code&&row.exit_code!==0?'程序未成功結束':row.elapsed_s>(job.kind==='patrol'?120:30)?'超過時間限制':!row.passed?'答案、型別或引用未通過檢查':'');
-    return `<tr><td><div class="case-id">${esc(row.id)}</div>${esc(row.question||row.id)}<details><summary>完整輸出與執行紀錄</summary><pre>${esc(JSON.stringify({expected:row.expected,actual:row.actual,error:row.error,exit_code:row.exit_code,trace:row.trace},null,2))}</pre></details></td><td><span class="pill ${row.passed?'correct':''}">${row.passed?'通過':'未通過'}</span>${error?`<p class="detail-note">${esc(error)}</p>`:''}</td><td>${formatValue(row.expected)}</td><td>${esc(brief.length>180?brief.slice(0,180)+'…':brief)}</td><td class="case-time">${agentSeconds(row.elapsed_s)}</td></tr>`;
+    const actual=row.actual?.answer, brief=valueText(actual), error=row.error||(row.exit_code&&row.exit_code!==0?'程序未成功結束':row.elapsed_s>(isPatrol?120:30)?'超過時間限制':!row.passed?'答案、型別或引用未通過檢查':'');
+    return `<tr><td><div class="case-id">${esc(row.id)}</div>${esc(row.question||row.id)}<details><summary>完整輸出與執行紀錄</summary><pre>${esc(JSON.stringify({expected:row.expected,rationale:row.rationale,category:row.category,expected_evidence:row.expected_evidence,allowed_tools:row.allowed_tools,actual:row.actual,error:row.error,exit_code:row.exit_code,trace:row.trace},null,2))}</pre></details></td><td><span class="pill ${row.passed?'correct':''}">${row.passed?'通過':'未通過'}</span>${error?`<p class="detail-note">${esc(error)}</p>`:''}</td><td>${formatValue(row.expected)}<p class="detail-note"><strong>設計理由：</strong>${esc(row.rationale||'此紀錄未保存設計理由；重新執行新版測試可保存。')}</p></td><td>${esc(brief.length>180?brief.slice(0,180)+'…':brief)}</td><td class="case-time">${agentSeconds(row.elapsed_s)}</td></tr>`;
   }).join(''):'<tr><td colspan="5" class="muted">等待第一題完成；每題重新啟動並載入模型。</td></tr>';agentRowsKey=rowsKey;}
+  renderPatrol(job);
   message('agent-status',job.message,['failed','interrupted'].includes(job.state));
 }
 async function refreshAgent(preferred){
@@ -257,4 +286,39 @@ $('agent-form').addEventListener('submit',async event=>{
 });
 $('agent-refresh').addEventListener('click',()=>refreshAgent());
 $('agent-jobs').addEventListener('change',()=>refreshAgent());
+$('patrol-prev').addEventListener('click',()=>selectPatrol(patrolIndex-1));
+$('patrol-next').addEventListener('click',()=>selectPatrol(patrolIndex+1));
+// Saved aggregate reports only; selection is independent from the current result.
+let comparisonExperiments=[], comparisonSelected=new Set(), comparisonLoading=false;
+const comparisonMethodNames={'solution-a':'方案 A',baseline:'Baseline','tfidf-lr':'TF-IDF＋LR','tfidf-svc':'TF-IDF＋SVC','bge-lr':'BGE＋LR','bge-svc':'BGE＋SVC','bge-finetuned':'BGE 神經頭／微調',uploaded:'上傳預測評分'};
+function comparisonMethod(row){return comparisonMethodNames[row.method]||row.method;}
+function comparisonLimit(row){return ({native:'本機', '2gb':'2 GB／禁止 swap'})[row.limit]||row.limit;}
+function comparisonNumber(value){return typeof value==='number'&&Number.isFinite(value)?value.toFixed(6):'—';}
+function comparisonTime(value){return typeof value==='number'&&Number.isFinite(value)?value.toFixed(3):'—';}
+function filteredExperiments(){const query=$('comparison-search').value.trim().toLowerCase();return comparisonExperiments.filter(row=>[row.label,row.run_id,row.dataset,row.method,comparisonMethod(row),row.model_path,comparisonLimit(row)].join(' ').toLowerCase().includes(query));}
+function renderExperimentComparison(){
+  const visible=filteredExperiments(), selected=comparisonExperiments.filter(row=>comparisonSelected.has(row.run_id));
+  $('comparison-count').textContent=`已選 ${selected.length} 筆 / 共 ${comparisonExperiments.length} 筆`;
+  $('comparison-select').disabled=!visible.length;
+  $('comparison-clear').disabled=!selected.length;
+  $('comparison-options').innerHTML=visible.length?visible.map(row=>`<tr><td><input type="checkbox" id="compare-${esc(row.run_id)}" data-compare-id="${esc(row.run_id)}" aria-label="比較 ${esc(row.label)}" ${comparisonSelected.has(row.run_id)?'checked':''}></td><td><label class="comparison-name" for="compare-${esc(row.run_id)}">${esc(row.label)}</label><small class="comparison-meta">${esc(row.run_id)}</small></td><td>${esc(row.dataset)}<small class="comparison-meta">${row.count===null?'筆數未記錄':esc(row.count)+' 筆'}</small></td><td>${esc(comparisonMethod(row))}<small class="comparison-meta">${esc(comparisonLimit(row))}</small></td><td>${row.total===null?'未評分':comparisonNumber(row.total)}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">沒有符合條件的實驗紀錄。</td></tr>';
+  document.querySelectorAll('[data-compare-id]').forEach(input=>input.addEventListener('change',()=>{if(input.checked)comparisonSelected.add(input.dataset.compareId);else comparisonSelected.delete(input.dataset.compareId);renderExperimentComparison();}));
+  $('comparison-results').hidden=!selected.length;
+  $('comparison-rows').innerHTML=selected.map(row=>`<tr><td><strong>${esc(row.label)}</strong><small class="comparison-meta">${esc(comparisonMethod(row))} · ${esc(comparisonLimit(row))}</small></td><td>${esc(row.dataset)} · ${row.count===null?'筆數未記錄':esc(row.count)+' 筆'}<details><summary>模型與資料識別</summary><div class="comparison-path">${esc(row.model_path||'預設模型／舊紀錄未保存模型路徑')}</div><div class="comparison-path">資料 SHA-256：${esc(row.dataset_sha256||'舊紀錄未保存')}</div></details></td><td class="comparison-total">${row.total===null?'未評分':comparisonNumber(row.total)}</td>${['category','device','urgency','duplicate'].map(key=>`<td>${comparisonNumber(row.metrics[key])}</td>`).join('')}<td>${comparisonTime(row.timing.total_seconds)}</td><td>${comparisonTime(row.timing.prediction_seconds)}</td></tr>`).join('');
+  const hashes=new Set(selected.map(row=>row.dataset_sha256).filter(Boolean));
+  $('comparison-warning').textContent=!selected.length?'勾選上方實驗後，這裡會顯示並排比較。':selected.length===1?'再勾選一筆即可比較不同實驗。':selected.some(row=>!row.dataset_sha256)?'部分舊紀錄沒有資料雜湊，無法確認是否為同一份資料；請對照來源與筆數，避免將不同資料的分數直接排序。':hashes.size>1?'選取實驗使用不同資料（SHA-256 不同），分數不宜直接作模型優劣比較。':'選取實驗使用相同資料 SHA-256。請同時對照模型與環境；分數為 0～1，耗時依各次執行範圍計算。';
+}
+async function refreshExperiments(){
+  if(comparisonLoading)return;
+  comparisonLoading=true;$('comparison-refresh').disabled=true;
+  try{const data=await api('/api/experiments');comparisonExperiments=data.experiments;const available=new Set(comparisonExperiments.map(row=>row.run_id));comparisonSelected=new Set([...comparisonSelected].filter(id=>available.has(id)));renderExperimentComparison();$('comparison-status').textContent=`共 ${comparisonExperiments.length} 筆保存紀錄${data.skipped?'；'+data.skipped+' 筆報告不完整或損壞，已略過':''}。未評分或未記錄的指標不以 0 代替。`;}
+  catch(error){$('comparison-status').textContent=error.message;}
+  finally{comparisonLoading=false;$('comparison-refresh').disabled=false;}
+}
+$('comparison-search').addEventListener('input',renderExperimentComparison);
+$('comparison-refresh').addEventListener('click',refreshExperiments);
+$('comparison-select').addEventListener('click',()=>{filteredExperiments().forEach(row=>comparisonSelected.add(row.run_id));renderExperimentComparison();});
+$('comparison-clear').addEventListener('click',()=>{comparisonSelected.clear();renderExperimentComparison();});
+refreshExperiments();
+
 if(['agent','lookup','evaluate','training'].includes(location.hash.slice(1)))navigate(location.hash.slice(1));

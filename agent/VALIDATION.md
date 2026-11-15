@@ -1,5 +1,16 @@
 # Agent 初版開發驗證
 
+## 2026-11-15：critical 設備候選政策 v2
+
+本節為新巡檢版本；下方 2026-11-14 的初版巡檢紀錄使用舊候選策略，不可當作新版成績。新版本先依公開 devices.json 的 critical=true 與設備編號／名稱／型號字面匹配建立候選池，再依完整原文的安全詞種類數與時間縮選最多 30 張，最後由本機 LLM 排前 10。未使用 dev 設計或調整本次變更。
+
+- Agent 單元測試 27 項、來源／引用報告測試 4 項通過，前端 Agent 卡片契約測試通過；包含 critical 切換、非關鍵設備排除、候選超過 30 張、完整原文計分與多行原文引用。
+- 透過正式 UI API 執行完整 tickets：2,000 筆中 975 張符合關鍵設備條件，縮選 30 張，輸出 10 張；總耗時 **39.523 秒**，巡檢執行 **39.418 秒**，契約通過。另確認輸出的 10 張均涉及 critical=true 設備且屬於模型候選。
+- 本機工作紀錄：`helper_tool/reports/agent/20261115-090857-464402-c36679e9/`；原文與逐筆報告只留本機。報告保存候選政策、程式／設備表雜湊與候選數量，不將格式驗證當作排序準確率。
+- 全部 975 張逐批交給模型的方案曾達 118 秒 deadline 而失敗；依使用者選定的 120 秒限制，最終採用規則縮選。首輪縮選測試另發現舊評分器無法處理含換行的真實引文，已以合成測試修正；未因這個錯誤改變排序規則。
+
+## 2026-11-14：初版紀錄
+
 日期：2026-11-14（Asia/Taipei）。Windows 原生 Python 3.13.5，Intel i7-13620H，CPU 6 threads，GPU layers=0；Qwen3-1.7B Q4_K_M、llama.cpp b12366。實際資產來源、revision 及 SHA256 見本機 `agent_assets/manifest.json`。
 
 | 檢查 | 結果 | 外部計時 |
@@ -29,3 +40,13 @@
 - `evals/results/final_provenance.json`：最終未提交程式全文快照、雜湊、資產版本與實際使用資料的 SHA256；核對兩套 v2 問答報告的來源雜湊均與最終程式一致。`tickets_smoke.json`／`.trace.log` 是正式預設路徑的固定版本查詢紀錄。
 - 原始權重、runtime、完整 trace、工單與評測報告均留本機、由 Git／Docker 忽略。
 - 本次沒有讀取 dev 檔、dev 副本或逐筆驗證結果，也沒有執行 dev 驗證。正式 schema 先前被讀取且內含 dev 示例的來源限制另見 README；不宣稱整段對話為完全未接觸 dev 相關示例的獨立開發。
+
+
+## 2026-11-15 合成 Evals 邊界情境擴充
+
+- 合成題庫從 12 題擴充為 30 題；每題保存 category／rationale。CLI、逐題事件、UI 與 JSON 報告保留設計理由。history 仍為 12 題，透過固定 ID 共用原始 6 題公開查表題。
+- 本次只修改題庫、評分及呈現，沒有更動 Agent 工具、提示詞或模型。新增工單欄位、未知工單與無關任務拒答題包含尚未支援的能力，照常計入分母。
+- 驗證：Python 53 項測試完成（52 通過、1 略過）；Node Agent／巡檢呈現契約通過。HTTP 測試先遇沙箱 WinError 10013，允許本機 loopback 後通過。未宣稱完成瀏覽器目視驗證。
+- 真實本機 Qwen3-1.7B Q4、CPU 6 threads，一次固定題庫完整執行：20/30；原始 12 題 11/12、新增 18 題 9/18。含資料準備及存檔總耗時 338.533 秒，逐題合計 337.245 秒，最長單題 16.062 秒。未依本次分數調整 Agent 或挑選重跑結果。
+- 未通過：reporter-count, ticket-detail-text, ticket-detail-reporter, date-local-day, date-empty-day, ranking-tie, device-ticket-match, ticket-unknown, scope-unrelated, scope-keyword-decoy。主要缺口為工單欄位作答／未知工單結果／無關任務拒答，以及回報人、時區單日、日期空結果、排名同分與設備字面條件理解。
+- 本機報告：`helper_tool/reports/agent/20261115-095644-989141-866302d3/report.json`；UI 可選取同一工作 ID 檢視。完整 trace 與報告遵守 Git 忽略規則、不上傳。報告保存實際程式、題庫、對照表及模型雜湊。這是合成開發評測；本次未讀取 dev，不代表泛化成績。

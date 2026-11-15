@@ -10,7 +10,7 @@ import unittest
 from agent.core import Agent
 from agent.tools import ROOT, Store
 from agent.process import ChildGuard
-from patrol import shortlist, selection_output
+from patrol import shortlist, selection_output, rank_candidates, prioritize_candidates
 
 
 class ScriptedModel:
@@ -157,11 +157,58 @@ class AgentTests(unittest.TestCase):
 
     def test_patrol_excludes_future_and_keeps_safety_excerpt(self):
         future = {**self.fixture["tickets"][0], "ticket_id": "FUTURE", "created_at": "2030-01-01T00:00:00Z"}
-        long = {**self.fixture["tickets"][0], "ticket_id": "LONG", "raw_text": "前言" * 150 + "有人受困需要處理"}
+        long = {**self.fixture["tickets"][0], "ticket_id": "LONG", "raw_text": "D01 " + "前言" * 150 + "有人受困需要處理" + "後文" * 100 + "冒煙"}
         self.path.write_text("".join(json.dumps(r) + "\n" for r in [future, long]), encoding="utf-8")
         candidates = shortlist(self.store)
         self.assertEqual(len(candidates), 1)
-        self.assertIn("有人受困", candidates[0]["raw_text"])
+        self.assertIn("冒煙", candidates[0]["raw_text"])
+        self.assertNotIn("有人受困", candidates[0]["raw_text"])
+        self.assertEqual(candidates[0]["safety_term_count"], 2)
+        self.assertLessEqual(len(candidates[0]["raw_text"]), 90)
+
+    def test_patrol_critical_gate_by_id_name_model_without_safety_words(self):
+        self.store.devices = [
+            {"device_id": "D01", "name": "合成主機", "model": "FAKE-01", "critical": True},
+            {"device_id": "D02", "name": "合成副機", "model": "FAKE-02", "critical": False}]
+        texts = ["D01 異音", "合成主機需要檢查", "FAKE-01 不運轉", "D02 起火冒煙", "D010 故障", "未指定設備冒煙"]
+        rows = [{**self.fixture["tickets"][0], "ticket_id": f"FAKE{i}", "raw_text": text}
+                for i, text in enumerate(texts)]
+        self.path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+        candidates = shortlist(self.store)
+        self.assertEqual([row["ticket_id"] for row in candidates], ["FAKE0", "FAKE1", "FAKE2"])
+        self.assertTrue(all(row["critical_devices"][0]["device_id"] == "D01" for row in candidates))
+        self.store.devices[0]["critical"] = False
+        self.assertEqual(shortlist(self.store), [])
+
+    def test_patrol_does_not_cut_off_critical_candidates_at_30(self):
+        rows = [{**self.fixture["tickets"][0], "ticket_id": f"FAKE{i}", "raw_text": "D01 異音"}
+                for i in range(61)]
+        self.path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+        candidates = shortlist(self.store)
+        self.assertEqual(len(candidates), 61)
+        seen = []
+        class Model:
+            def decide(self, messages, schema, max_tokens):
+                batch = json.loads(messages[1]["content"])
+                seen.append([row["ticket_id"] for row in batch])
+                # Synthetic deterministic preference; not a ranking accuracy test.
+                ordered = sorted(batch, key=lambda row: int(row["ticket_id"][4:]), reverse=True)
+                return {"items": [{"ticket_id": row["ticket_id"], "priority": "medium"} for row in ordered[:10]]}
+        candidates[-1]["safety_term_count"] = 2
+        candidates[-2]["safety_term_count"] = 1
+        candidates[-2]["created_at"] = "2026-10-02T00:00:00Z"
+        candidates[-3]["safety_term_count"] = 1
+        selected = prioritize_candidates(candidates)
+        self.assertEqual(len(selected), 30)
+        self.assertEqual([row["ticket_id"] for row in selected[:3]], ["FAKE60", "FAKE59", "FAKE58"])
+        output = rank_candidates(Model(), selected)
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(set(seen[0]), {row["ticket_id"] for row in selected})
+        self.assertEqual(output[0]["ticket_id"], "FAKE60")
+        with self.assertRaises(ValueError):
+            rank_candidates(Model(), candidates)
+        self.assertEqual(rank_candidates(Model(), []), [])
+        self.assertEqual(len(rank_candidates(Model(), candidates[:3])), 3)
 
     def test_patrol_rejects_duplicate_ids_and_fabricated_quotes(self):
         candidates = [{"ticket_id": "S1", "raw_text": "設備冒煙需要處理"},

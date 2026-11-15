@@ -24,7 +24,9 @@ def build_history_suite(root):
     reporter = sorted(counts)[0]
     dates = [datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")).astimezone(timezone.utc) for r in rows]
     boundary = min(dates).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=3)
-    public = json.loads((Path(root) / "evals/fixtures.json").read_text(encoding="utf-8"))["cases"][:6]
+    public_ids = {"public-location", "public-name", "public-model", "public-code", "public-code-variant", "public-empty"}
+    public = [case for case in json.loads((Path(root) / "evals/fixtures.json").read_text(encoding="utf-8"))["cases"]
+              if case["id"] in public_ids]
     cases = public + [
         {"id": "history-count", "question": "目前輸入資料共有幾張工單？", "answer": len(rows)},
         {"id": "history-date", "question": f"{boundary:%Y-%m-%d} 之後有幾張工單？包含當日零點。",
@@ -37,5 +39,15 @@ def build_history_suite(root):
         {"id": "history-empty", "question": "原文字面包含「SYNTHETIC_NO_MATCH_7F2A」的工單共有幾張？",
          "answer": sum("SYNTHETIC_NO_MATCH_7F2A" in row["raw_text"] for row in rows)},
     ]
+    reasons = [
+        "驗證 history 完整四欄投影的工單總數，不使用答案標籤。",
+        "驗證 history 日期篩選包含 UTC 當日零點。",
+        "驗證 history 回報人排名，同分時回傳全部人名。",
+        "驗證 history 指定完整回報人姓名的計數。",
+        "驗證 history 僅匹配指定原文字詞，不使用語意分類標籤。",
+        "驗證 history 對指定罕見字串的字面計數，不預先假定一定為零。",
+    ]
+    for case, reason in zip(cases[len(public):], reasons):
+        case.update(rationale=reason, category="history_query")
     return {"provenance": "history four-field projection and public tables; no dev access or answer labels",
             "tickets": rows, "cases": cases}
