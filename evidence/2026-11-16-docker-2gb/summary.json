@@ -1,0 +1,70 @@
+{
+  "docker": "linux/arm64 29.6.2",
+  "image_id": "sha256:fb1edd4cd00eb801b58e1f673afaeb1da1b471f1ba1589cc717a159eca228197",
+  "limits": "--memory=2g --memory-swap=2g --cpus=2 --network=none",
+  "probe": {
+    "exit_code": 137,
+    "oom_killed": true,
+    "host_config": "2147483648 2147483648 2000000000 \"none\""
+  },
+  "tickets_runs": [
+    {
+      "run": 1,
+      "exit_code": 0,
+      "memory.max": "2147483648",
+      "memory.swap.max": "0",
+      "cpu.max": "200000 100000",
+      "memory_peak_mib": 517.9,
+      "oom_events_after": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+      "process_wall_seconds": 26.878,
+      "p50_ms": 43.141,
+      "p95_ms": 137.202,
+      "max_ms": 210.731,
+      "rows": 2000,
+      "output_sha256": "f46053b983245b681fe38b482c462a013fda3e69d3047c7d135b4ce86e64cfd8"
+    },
+    {
+      "run": 2,
+      "exit_code": 0,
+      "memory.max": "2147483648",
+      "memory.swap.max": "0",
+      "cpu.max": "200000 100000",
+      "memory_peak_mib": 434.8,
+      "oom_events_after": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+      "process_wall_seconds": 25.684,
+      "p50_ms": 44.287,
+      "p95_ms": 136.235,
+      "max_ms": 213.216,
+      "rows": 2000,
+      "output_sha256": "f46053b983245b681fe38b482c462a013fda3e69d3047c7d135b4ce86e64cfd8"
+    },
+    {
+      "run": 3,
+      "exit_code": 0,
+      "memory.max": "2147483648",
+      "memory.swap.max": "0",
+      "cpu.max": "200000 100000",
+      "memory_peak_mib": 428.0,
+      "oom_events_after": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+      "process_wall_seconds": 25.78,
+      "p50_ms": 44.509,
+      "p95_ms": 138.806,
+      "max_ms": 200.262,
+      "rows": 2000,
+      "output_sha256": "f46053b983245b681fe38b482c462a013fda3e69d3047c7d135b4ce86e64cfd8"
+    }
+  ],
+  "identical_outputs": true,
+  "matches_tickets_predictions_jsonl": true,
+  "dev": {
+    "exit_code": 0,
+    "memory_peak_mib": 392.9,
+    "score_lines": [
+      "device_id                0.990   281/283，另 16/17 筆正確說不知道",
+      "category (macro-F1)      0.898",
+      "urgency (macro-F1)       1.000",
+      "duplicate_of (F1)        0.934",
+      "總分 = 0.4×category + 0.2×device + 0.2×urgency + 0.2×duplicate = 0.944"
+    ]
+  }
+}
