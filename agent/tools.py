@@ -1,13 +1,20 @@
 """Deterministic queries over public tables and the four raw ticket fields.
 
-No predictions, trained classifiers, scheme A aliases, or answer labels are used.
-Ticket text searches are lexical matches, not ground-truth semantic labels.
+No answer labels or precomputed predictions are read. Ticket text searches are lexical
+matches, not ground-truth semantic labels. The one exception is ticket_status: it runs
+the part-1 classifier (predict.py) on the matched raw texts and reports that the
+category is a model judgement, not a label.
 """
 import json
+import os
 import re
+import subprocess
+import sys
+import tempfile
+import time
 import unicodedata
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,7 +74,13 @@ SCHEMAS = {
     "get_ticket_details": object_schema({
         "ticket_ids": {"type": "array", "items": STRING, "minItems": 1, "maxItems": 20},
     }, ["ticket_ids"]),
+    "ticket_status": object_schema({
+        "device": {"type": "string", "description": "設備編號、名稱或型號；回該設備最近工單的故障類別。"},
+        "since": {"type": "string", "description": "問題明確給期間才填；省略代表快照前 7 天。"},
+    }, ["device"]),
 }
+STATUS_DAYS = 7
+STATUS_LIMIT = 50  # bound classifier input; the newest tickets in the window are kept
 
 
 def validate(value, schema):
@@ -101,6 +114,7 @@ class Store:
         if "dev" in self.tickets_path.stem.casefold():
             raise ValueError("Agent 不接受 dev 資料；開發請使用 history 或合成資料")
         self._tickets = None
+        self.deadline = None  # time.monotonic() bound for the classifier subprocess
 
     @property
     def tickets(self):
@@ -201,3 +215,75 @@ class Store:
             raise ValueError("引用不存在的工單")
         return {"answer": ticket_ids, "evidence": ticket_ids,
                 "records": [index[key] for key in ticket_ids]}
+
+    def classify(self, rows):
+        """Category per ticket from the part-1 CLI (scheme A rules), raw four fields only."""
+        timeout = 60.0 if self.deadline is None else self.deadline - time.monotonic() - 1.5
+        if timeout <= 1:
+            raise TimeoutError("剩餘時間不足以執行分類器")
+        with tempfile.TemporaryDirectory(prefix="silab-status-") as temp:
+            source, output, metrics = (Path(temp) / name for name in ("in.jsonl", "out.jsonl", "m.json"))
+            source.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+            try:
+                # Scheme A rules (~0.4 s): C-FT is more accurate but its 5-12 s load put ask.py's
+                # 30 s limit at risk on a busy CPU (two eval timeouts), and a timeout is a wrong answer.
+                result = subprocess.run([sys.executable, str(ROOT / "predict.py"), str(source), str(output),
+                                         "--method", "rules", "--metrics", str(metrics)],
+                                        capture_output=True, text=True,
+                                        encoding="utf-8", timeout=timeout,
+                                        env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+            except subprocess.TimeoutExpired as exc:
+                raise TimeoutError("分類器超時") from exc
+            if result.returncode != 0:
+                raise RuntimeError("分類器執行失敗：" + (result.stderr.strip().splitlines() or ["?"])[-1])
+            categories = {json.loads(line)["ticket_id"]: json.loads(line)["category"]
+                          for line in output.read_text(encoding="utf-8").splitlines() if line.strip()}
+            scheme = json.loads(metrics.read_text(encoding="utf-8")).get("scheme", "unknown")
+        return categories, scheme
+
+    def ticket_status(self, device, since=""):
+        """Most common category of a device's recent tickets (lexical device match).
+
+        Window: since (default snapshot - 7 days) up to the snapshot. Ties go to the newest
+        tied ticket's category; an empty window falls back to the device's newest ticket.
+        """
+        values = self.get_devices(identifier=device, field="device_id", single=True)["answer"]
+        if values is None:
+            raise ValueError("未知設備；device 只接受設備編號、名稱或型號")
+        record = next(d for d in self.devices if d["device_id"] == values)
+        snapshot = timestamp(SNAPSHOT)
+        start = timestamp(since) if since else snapshot - timedelta(days=STATUS_DAYS)
+        if start >= snapshot:
+            raise ValueError("since 必須早於資料快照時間")
+        terms = [normalize(record[k]) for k in ("device_id", "name", "model")]
+        matched = [r for r in self.tickets if timestamp(r["created_at"]) <= snapshot and
+                   contains_device(normalize(r["raw_text"]), terms)]
+        window = [r for r in matched if timestamp(r["created_at"]) >= start][-STATUS_LIMIT:]
+        basis = "window"
+        if not window:
+            window, basis = matched[-1:], "latest_outside_window"
+        if not window:
+            return {"answer": None, "evidence": [], "category_counts": {}, "total": 0,
+                    "note": f"{record['device_id']}（{record['name']}）在快照前沒有字面匹配的工單。"}
+        categories, scheme = self.classify(window)
+        newest_first = window[::-1]
+        counts = Counter(c for c in (categories[r["ticket_id"]] for r in window) if c is not None)
+        answer = None
+        if counts:
+            best = max(counts.values())
+            # Newest ticket among the tied categories decides the tie.
+            answer = next(categories[r["ticket_id"]] for r in newest_first
+                          if counts.get(categories[r["ticket_id"]]) == best)
+        latest = newest_first[0]
+        excerpt = latest["raw_text"][:40] + ("…" if len(latest["raw_text"]) > 40 else "")
+        scope = (f"{start.strftime('%Y-%m-%dT%H:%M:%SZ')} 起至快照 {len(window)} 張" if basis == "window"
+                 else "期間內沒有工單，改看最新一張")
+        summary = "、".join(f"{k} {v}" for k, v in counts.most_common()) or "無法判斷類別"
+        return {"answer": answer, "evidence": [r["ticket_id"] for r in newest_first[:20]],
+                # No raw records: the model only needs to finish, and ~860 extra prompt tokens
+                # cost ~6 s of the 30 s budget. The note carries the newest excerpt for people.
+                "category_counts": dict(counts), "basis": basis, "total": len(window),
+                "note":(f"{record['device_id']}（{record['name']}）{scope}：{summary}。"
+                         f"最新 {latest['ticket_id']}（{latest['created_at']}）：「{excerpt}」。"
+                         f"類別由第一部分分類器（{scheme}）依原文判斷，不是原文標籤；"
+                         "設備為字面匹配，錯字、簡體或代稱的工單可能漏掉。")}

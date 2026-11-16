@@ -43,6 +43,7 @@ def main(argv=None):
         raise ValueError("threads >= 1；timeout 為 (0,29]；max-steps 為 2..8")
     deadline = STARTED + args.timeout
     store = Store(args.tickets, args.data_dir)
+    store.deadline = deadline
     with LocalModel(args.model, args.server, deadline, args.threads) as model:
         result = Agent(store, model, deadline, args.trace, args.max_steps).ask(args.question)
     if args.trace:

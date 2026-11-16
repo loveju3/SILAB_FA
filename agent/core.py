@@ -35,6 +35,9 @@ reporter 是精確姓名；contains_any 是字面任一詞匹配，不要把整�
 finish前核對observation的applied_filters是否符合原問題，漏條件或抄錯姓名時重新查詢。
 device_id 只匹配公開設備名稱/型號/ID，不會自動辨識錯字、代稱或預測類別。
 get_ticket_details 讀指定工單。read/details 只能提供工單ID答案，尚不支援自由文字總結。
+ticket_status 回某設備最近工單的故障類別（noise/temperature/power/software/other）；
+問設備「最近出了什麼狀況／什麼問題／怎麼了／哪裡壞」用 ticket_status，不要用 get_device。
+get_device 只用在問題明確問名稱、位置、型號或是否關鍵設備時。
 無結果時使用工具回傳的0/空清單/null，不可編造。工具 error 後可修正參數。
 日期使用UTC；since含邊界、until不含邊界；『某日期之後』since=該日00:00:00Z。
 今天的資料快照是 {snapshot}，最近N天從此時間回推，不使用電腦今天。
@@ -43,6 +46,7 @@ get_ticket_details 讀指定工單。read/details 只能提供工單ID答案，�
 動作格式範例（不是目前問題的答案）：
 問頂樓有哪些設備：{{"tool":"devices_at_location","arguments":{{"location":"頂樓"}}}}
 問D02的型號：{{"tool":"get_device","arguments":{{"identifier":"D02","field":"model"}}}}
+問發電機最近怎麼了：{{"tool":"ticket_status","arguments":{{"device":"發電機"}}}}
 問共有幾張工單：{{"tool":"query_tickets","arguments":{{"operation":"count"}}}}
 問回報人陳小工有幾張：{{"tool":"query_tickets","arguments":{{"operation":"count","reporter":"陳小工"}}}}
 問原文有卡住或E-99的工單幾張：{{"tool":"query_tickets","arguments":{{"operation":"count","contains_any":["卡住","E-99"]}}}}

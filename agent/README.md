@@ -33,6 +33,7 @@ python3 patrol.py --trace
 | `get_error_code` | 查錯誤碼的類別、意思與型號（大小寫、全半形、分隔符號會先統一）；查無則回 null |
 | `query_tickets` | 依時間區間、回報人、設備、文字條件篩選工單，可計數、找最多的回報人、列工單 ID 或讀最近的原文 |
 | `get_ticket_details` | 讀最多 20 張指定工單的原文 |
+| `ticket_status` | 回答「某設備最近出了什麼狀況」：取快照前 7 天字面匹配的工單（可用 `since` 改期間），用第一部分的方案 A 規則判斷每張的故障類別，answer 回最常見的類別；同分取其中最新一張，7 天內沒有工單就看最新一張，完全沒有工單則回 null。note 列出各類別張數與最新一張的原文摘錄 |
 
 **停止條件：**
 
@@ -45,7 +46,7 @@ python3 patrol.py --trace
 
 - 計數一定先掃完整的符合集合，evidence 最多附 20 筆；送給模型看的只是預覽（清單前 20 個、原文前 5 筆），完整答案保留在 Python。
 - 日期條件 `since` 含邊界、`until` 不含，都必須帶時區。「今天」固定為快照時間 `2026-10-14T15:10:00Z`。
-- 工單只讀 `data/tickets.jsonl` 的 ticket_id、created_at、reporter、raw_text 四個欄位；公開資料讀 `devices.json` 與 `error_codes.json`。不讀第一部分的預測，也不載入方案 A 的規則。開發時可以用 `--tickets data/history.jsonl`；檔名含 dev 的路徑會被拒絕。這只是防呆，不能取代資料使用規範。
+- 工單只讀 `data/tickets.jsonl` 的 ticket_id、created_at、reporter、raw_text 四個欄位；公開資料讀 `devices.json` 與 `error_codes.json`。不讀第一部分的預測檔。唯一例外是 `ticket_status`：它把符合條件的工單原文（四欄）交給 `predict.py --method rules`（方案 A 規則）即時分類，類別是規則判斷，不是標籤，note 會寫明。方案 A 曾觀察 dev，這個工具同樣帶有該來源限制；其他工具不載入方案 A 的規則。沒有用較準的 C-FT（dev category 0.898，A 為 0.849），因為 C-FT 載入要 5～12 秒，CPU 忙碌時曾讓兩題超過 29 秒時限；規則分類 24 張約 0.4 秒。開發時可以用 `--tickets data/history.jsonl`；檔名含 dev 的路徑會被拒絕。這只是防呆，不能取代資料使用規範。
 
 **目前限制：**
 
@@ -76,7 +77,7 @@ python3 evals/run.py --suite history             # 用 history 出的題
 python3 evals/run_patrol.py --dataset tickets    # 巡檢格式與時限檢查
 ```
 
-- **合成題（v3，41 題）：** 13 張人工合成工單加上公開對照表；開發組 36 題，保留組 5 題要等版本凍結後才以 `--split holdout` 跑一次。題型包含查表、計數、日期邊界、排名同分、未知工單、無關問題拒答、口語問法、相對時間、多步查詢，以及含簡體與錯字的工單。每題在 `evals/fixtures.json` 記錄設計理由。
+- **合成題（v3，44 題）：** 13 張人工合成工單加上公開對照表；開發組 39 題，保留組 5 題要等版本凍結後才以 `--split holdout` 跑一次。題型包含查表、計數、日期邊界、排名同分、未知工單、無關問題拒答、口語問法、相對時間、多步查詢、設備最近狀況，以及含簡體與錯字的工單。每題在 `evals/fixtures.json` 記錄設計理由。
 - **history 題（12 題）：** 從 history 的四個輸入欄位計算預期答案，不使用答案標籤；其中 6 題公開查表題與合成題共用。
 - **評分方式：** 每題重新啟動 `ask.py` 並載入模型，要求答案值與 JSON 型別完全相符、引用集合完全相符、耗時 ≤ 30 秒。查無資料與無關問題的答案都是 `null`；程序錯誤或逾時不算答對。目前尚未支援的能力照常計入分母。
 - **巡檢檢查：** 只驗證格式、引用能對回原文、工單不重複與時限，沒有排序正確率的標準答案。

@@ -58,6 +58,51 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(result["answer"], 2)
         self.assertEqual(result["evidence"], ["SYN002", "SYN003"])
 
+    def stub_classifier(self, labels):
+        """Replace the part-1 subprocess; records which tickets were sent to it."""
+        sent = []
+        def classify(rows):
+            sent.append([r["ticket_id"] for r in rows])
+            return {r["ticket_id"]: labels[r["ticket_id"]] for r in rows}, "stub"
+        self.store.classify = classify
+        return sent
+
+    def test_status_tie_uses_newest_tied_ticket(self):
+        sent = self.stub_classifier({"SYN007": "power", "SYN012": "temperature"})
+        result = self.store.call("ticket_status", {"device": "冰水主機"})
+        self.assertEqual(sent, [["SYN012", "SYN007"]])  # 7-day window only, oldest first
+        self.assertEqual(result["answer"], "power")
+        self.assertEqual(result["evidence"], ["SYN007", "SYN012"])
+        self.assertEqual(result["basis"], "window")
+        self.assertIn("stub", result["note"])
+
+    def test_status_majority_and_null_categories_ignored(self):
+        self.stub_classifier({"SYN007": None, "SYN012": "temperature"})
+        self.assertEqual(self.store.call("ticket_status", {"device": "D02"})["answer"], "temperature")
+        self.stub_classifier({"SYN007": None, "SYN012": None})
+        self.assertIsNone(self.store.call("ticket_status", {"device": "D02"})["answer"])
+
+    def test_status_empty_window_falls_back_to_latest_ticket(self):
+        sent = self.stub_classifier({"SYN004": "other"})
+        result = self.store.call("ticket_status", {"device": "PM-15"})
+        self.assertEqual((sent, result["answer"], result["basis"]), ([["SYN004"]], "other", "latest_outside_window"))
+
+    def test_status_explicit_since_and_errors(self):
+        sent = self.stub_classifier({"SYN001": "noise", "SYN002": "temperature", "SYN006": "noise"})
+        result = self.store.call("ticket_status", {"device": "D01", "since": "2026-09-01T00:00:00Z"})
+        self.assertEqual((sent, result["answer"]), ([["SYN001", "SYN002", "SYN006"]], "noise"))
+        no_tickets = self.store.call("ticket_status", {"device": "D05"})
+        self.assertEqual((no_tickets["answer"], no_tickets["evidence"], len(sent)), (None, [], 1))
+        with self.assertRaises(ValueError):
+            self.store.call("ticket_status", {"device": "頂樓"})
+        with self.assertRaises(ValueError):
+            self.store.call("ticket_status", {"device": "D01", "since": "2026-10-15T00:00:00Z"})
+
+    def test_status_classifier_timeout_is_a_failure(self):
+        self.store.deadline = time.monotonic()
+        with self.assertRaises(TimeoutError):
+            self.store.call("ticket_status", {"device": "D01"})
+
     def test_invalid_time_and_inverted_interval(self):
         for args in ({"since": "2026-10-01"}, {"since": "2026-10-02T00:00:00Z", "until": "2026-10-01T00:00:00Z"}):
             with self.assertRaises(ValueError):

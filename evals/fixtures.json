@@ -585,6 +585,41 @@
         "SYN010",
         "SYN011"
       ]
+    },
+    {
+      "id": "status-tie-newest",
+      "question": "冰水主機最近出了什麼狀況？",
+      "answer": "power",
+      "rationale": "開放式「最近狀況」題，answer 定義為快照前 7 天字面匹配工單的最常見故障類別。D02 近 7 天有 SYN007（短路火花→power）與 SYN012（E-03 冷媒低壓→temperature）各 1 張，同分取最新一張 SYN007，預期 power。驗證模型改用 ticket_status 而非 get_device，以及同分規則。",
+      "category": "device_status",
+      "split": "dev",
+      "evidence_required": true,
+      "expected_evidence": [
+        "SYN007",
+        "SYN012"
+      ]
+    },
+    {
+      "id": "status-fallback-latest",
+      "question": "循環泵浦最近出了什麼問題？",
+      "answer": "other",
+      "rationale": "D06 近 7 天沒有工單，改看最新一張 SYN004（漏水→schema 歸 other）。驗證期間內無工單時不回空值，而是退回最新一張並在 note 說明。",
+      "category": "device_status",
+      "split": "dev",
+      "evidence_required": true,
+      "expected_evidence": [
+        "SYN004"
+      ]
+    },
+    {
+      "id": "status-no-tickets",
+      "question": "除濕機最近怎麼了？",
+      "answer": null,
+      "rationale": "D05 在合成工單中完全沒有報修，應回 null、evidence 為空，不能拿設備屬性或其他設備的工單充數。",
+      "category": "device_status",
+      "split": "dev",
+      "evidence_required": false,
+      "expected_evidence": []
     }
   ]
 }
