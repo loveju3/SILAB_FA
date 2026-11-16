@@ -171,9 +171,10 @@ class MethodSelectionTest(unittest.TestCase):
     def test_explicit_method_and_mem_limit(self):
         self.assertEqual(self.choose("method", "rules")[0], "rules")
         self.assertEqual(self.choose("method", "bge-finetuned")[:2], ("bge-finetuned", True))
-        self.assertEqual(self.choose("mem_limit", "2g"), ("rules", False, True))
-        with self.assertRaises(ValueError):
-            self.choose("mem_limit", "2g", "method", "bge-finetuned")
+        # 2 GB mode keeps the default model choice and only adds the memory cap.
+        self.assertEqual(self.choose("mem_limit", "2g"), ("bge-finetuned", True, True))
+        self.assertEqual(self.choose("mem_limit", "2g", installed=False)[::2], ("rules", True))
+        self.assertEqual(self.choose("mem_limit", "2g", "method", "rules"), ("rules", False, True))
 
 
 if __name__ == "__main__":

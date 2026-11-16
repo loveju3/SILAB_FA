@@ -12,7 +12,7 @@ On Linux it repeats the runs under a hard 2 GiB address-space limit (RLIMIT_AS,
 set in the child before exec). Address space is always >= resident memory, so a
 run that finishes under it never held more than 2 GiB. A probe that tries to
 allocate 2.5 GiB under the same limit must fail, showing the limit is enforced.
-The 2 GB deliverable command itself (`--mem-limit 2g`) is what is run for scheme A.
+Limited runs also pass `--mem-limit 2g`, the 2 GB deliverable flag.
 
 Nothing from the tickets except ticket_id is written; dev is never read.
 """
@@ -35,7 +35,7 @@ import _venv  # noqa: E402
 LIMIT = 2 * 1024 ** 3
 PROBE_BYTES = int(2.5 * 1024 ** 3)
 DELIVERABLES = {("bge-finetuned", False): "tickets_predictions.jsonl",
-                ("rules", True): "tickets_predictions_2gb.jsonl"}
+                ("bge-finetuned", True): "tickets_predictions_2gb.jsonl"}
 
 
 def sha256(path):
@@ -84,7 +84,7 @@ def run_once(method, limited, workdir, index):
     metrics = output.with_suffix(".metrics.json")
     command = [sys.executable, str(ROOT / "predict.py"), str(ROOT / "data/tickets.jsonl"), str(output),
                "--metrics", str(metrics)]
-    command += ["--mem-limit", "2g"] if (limited and method == "rules") else ["--method", method]
+    command += ["--method", method] + (["--mem-limit", "2g"] if limited else [])
     env = dict(os.environ, SILAB_NO_VENV="1", PYTHONUTF8="1")
     started = time.perf_counter()
     process = subprocess.run(command, capture_output=True, text=True, env=env,

@@ -59,7 +59,7 @@ def main(argv=None):
 
     # Part 1 -----------------------------------------------------------------
     if has["dev.jsonl"]:
-        for label, extra in (("預設（微調 BGE）", []), ("2 GB 模式（方案 A）", ["--mem-limit", "2g"])):
+        for label, extra in (("預設（微調 BGE）", []), ("2 GB 模式（--mem-limit 2g）", ["--mem-limit", "2g"])):
             name = "dev_predictions%s.jsonl" % ("_2gb" if extra else "")
             if run("第一部分 dev 預測：" + label, [python, predict, DATA / "dev.jsonl", OUT / name, *extra], results):
                 run("第一部分 dev 評分：" + label, [python, evaluate, OUT / name, DATA / "dev.jsonl"], results)

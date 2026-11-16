@@ -23,12 +23,13 @@ MEMORY_LIMITS = {"2g": 2 * 1024 ** 3}
 
 
 def choose_method(args):
-    """Default to the fine-tuned model when installed; 2 GB mode uses scheme A."""
+    """Default to the fine-tuned model when installed, otherwise scheme A.
+
+    --mem-limit 2g keeps the same method choice (C-FT peaks at about 0.5 GiB and
+    passes a 2 GiB Docker cap, see budget.md) and adds a 2 GiB process cap.
+    """
     if args.mem_limit:
-        if args.method not in (None, "rules"):
-            raise ValueError("--mem-limit 2g 固定使用方案 A（rules），不可與其他 --method 併用")
         apply_memory_limit(MEMORY_LIMITS[args.mem_limit])
-        return "rules", None
     if args.method:
         if args.method == "bge-finetuned" and args.model_path is None:
             return args.method, FINETUNED
@@ -41,7 +42,7 @@ def choose_method(args):
 
 
 def apply_memory_limit(limit):
-    """Best-effort process cap on Linux; budget.md documents the Docker 2 GiB verification."""
+    """Process address-space cap on Linux (no-op elsewhere); budget.md has the Docker 2 GiB verification."""
     if not sys.platform.startswith("linux"):
         return
     import resource
@@ -62,7 +63,7 @@ def main(argv=None) -> int:
     parser.add_argument("--model-path", type=Path,
                         help="模型路徑；bge-finetuned 預設 transfer/finetuned，其他預設 Solution/models/<method>.joblib")
     parser.add_argument("--mem-limit", choices=sorted(MEMORY_LIMITS),
-                        help="2 GB 演練模式：固定使用方案 A（見 budget.md）")
+                        help="2 GB 演練模式：方法選擇同預設，另加 2 GiB 程序上限（Linux）；見 budget.md")
     args = parser.parse_args(argv)
     try:
         args.method, args.model_path = choose_method(args)
