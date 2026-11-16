@@ -13,7 +13,7 @@ import sys
 
 from .common import ROOT
 from .agent_jobs import alive
-from Solution.training.settings import FineTuneSettings, ModalSettings
+from Solution.training.settings import FineTuneSettings, LinearSettings, ModalSettings
 from Solution.triage.io import atomic_write, read_tickets, load_json
 
 REGISTRY = ROOT / "helper_tool/reports/training"
@@ -54,6 +54,8 @@ def _entry(job_id):
 def get_job(job_id):
     entry = _entry(job_id)
     directory = Path(entry["directory"])
+    if not (directory / 'status.json').is_file():
+        raise FileNotFoundError(f"訓練資料夾已不存在（可能已被刪除）：{directory}")
     status = load_json(directory / 'status.json')
     # A worker survives normal UI restarts. Detect abrupt termination without
     # treating stale status files as successful training results.
@@ -88,7 +90,17 @@ def get_job(job_id):
 
 def list_jobs():
     REGISTRY.mkdir(parents=True, exist_ok=True)
-    return [get_job(p.stem) for p in sorted(REGISTRY.glob('*.json'), reverse=True)[:50]]
+    jobs = []
+    for path in sorted(REGISTRY.glob('*.json'), reverse=True):
+        try:
+            jobs.append(get_job(path.stem))
+        except FileNotFoundError:
+            # The user may delete old training folders by hand; their index
+            # entries are skipped so the remaining history stays usable.
+            continue
+        if len(jobs) == 50:
+            break
+    return jobs
 
 
 def start_job(payload):
@@ -106,6 +118,11 @@ def start_job(payload):
     if payload.get("history_only") is not True:
         raise ValueError("請確認資料為開發用 history，未包含 dev 或其他保留測試集")
     settings = FineTuneSettings.from_dict(payload.get("settings"))
+    # LR／SVC parameters only apply to the existing sklearn training kinds.
+    linear_settings = (LinearSettings.from_dict(payload.get("linear_settings"), kind).to_dict(kind)
+                       if kind != "bge-finetune" else None)
+    if kind == "bge-finetune" and payload.get("linear_settings"):
+        raise ValueError("聯合微調請使用微調設定，不接受 LR／SVC 設定")
     modal_settings = asdict(ModalSettings.load()) if backend == 'modal' else None
     source = payload.get("source", "local")
     if source not in ("local", "upload"):
@@ -173,6 +190,8 @@ def start_job(payload):
                   "note": "Uploaded history is user-attested; file names cannot prove data provenance."}
         if modal_settings is not None:
             config['modal_settings'] = modal_settings
+        if linear_settings is not None:
+            config['linear_settings'] = linear_settings
         write_json(directory / 'config.json', config)
         # Snapshot code/config, never the data tree, so uncommitted training runs
         # remain reviewable even after the working copy changes.

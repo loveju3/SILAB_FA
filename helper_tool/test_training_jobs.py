@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from helper_tool import training_jobs as jobs
-from Solution.training.settings import FineTuneSettings
+from Solution.training.settings import FineTuneSettings, LinearSettings
 
 
 class TrainingJobsTest(unittest.TestCase):
@@ -35,11 +35,45 @@ class TrainingJobsTest(unittest.TestCase):
             with self.subTest(values=values), self.assertRaises(ValueError):
                 FineTuneSettings.from_dict(values)
 
+    def test_linear_settings_defaults_match_previous_recipe_and_validate(self):
+        defaults = LinearSettings.from_dict()
+        self.assertEqual((defaults.c, defaults.class_weight, defaults.analyzer, defaults.ngram_min, defaults.ngram_max,
+                          defaults.lr_max_iter, defaults.svc_max_iter, defaults.min_df, defaults.max_features,
+                          defaults.sublinear_tf), (1.0, 'balanced', 'char', 2, 4, 2000, 5000, 1, 0, True))
+        self.assertEqual(set(LinearSettings.from_dict({}, 'bge-frozen').to_dict('bge-frozen')), set(LinearSettings.HEAD_FIELDS))
+        self.assertEqual(LinearSettings.from_dict({'c': .1, 'ngram_max': 5}).ngram_max, 5)
+        for values in ({'c': True}, {'c': float('inf')}, {'class_weight': 'auto'}, {'lr_max_iter': 10.5},
+                       {'max_features': 50}, {'sublinear_tf': 1}, {'analyzer': 'word'}, []):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                LinearSettings.from_dict(values)
+
+    def test_deleted_training_folder_does_not_break_job_list(self):
+        with patch.object(jobs.subprocess, 'Popen', side_effect=OSError('synthetic failure')):
+            for _ in range(2):
+                with self.assertRaises(OSError):
+                    jobs.start_job(self.payload)
+        first, second = jobs.list_jobs()
+        jobs.shutil.rmtree(first['directory'])
+        self.assertEqual([job['job_id'] for job in jobs.list_jobs()], [second['job_id']])
+        with self.assertRaisesRegex(FileNotFoundError, '已不存在'):
+            jobs.get_job(first['job_id'])
+
+    def test_linear_settings_are_saved_in_job_config(self):
+        with patch.object(jobs.subprocess, 'Popen', side_effect=OSError('synthetic failure')):
+            with self.assertRaises(OSError):
+                jobs.start_job({**self.payload, 'linear_settings': {'c': .5, 'ngram_max': 3}})
+        config = jobs.list_jobs()[0]['config']
+        self.assertEqual((config['linear_settings']['c'], config['linear_settings']['ngram_max']), (.5, 3))
+        self.assertEqual(config['linear_settings']['class_weight'], 'balanced')
+
     def test_invalid_uploads_publish_no_training_job(self):
         for change in ({'history_only': False}, {'history_name': 'dev.jsonl'}, {'source': 'dev'},
                        {'history_content': '{broken'}, {'history_content': '{}'},
                        {'history_content': self.payload['history_content'].replace('noise', 'invalid')},
-                       {'kind': 'shell'}, {'settings': {'encoder_lr': .1}}):
+                       {'kind': 'shell'}, {'settings': {'encoder_lr': .1}},
+                       {'linear_settings': {'c': 0}}, {'linear_settings': {'ngram_min': 5, 'ngram_max': 2}},
+                       {'linear_settings': {'unknown': 1}},
+                       {'kind': 'bge-frozen', 'linear_settings': {'analyzer': 'char'}}):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 jobs.start_job({**self.payload, **change})
         self.assertEqual(jobs.list_jobs(), [])

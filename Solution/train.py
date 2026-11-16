@@ -20,6 +20,7 @@ from triage.text import classification_text
 from training.data import history_split, load_history
 from training.linear import fit_bundle
 from training.evaluation import PROVENANCE, category_metrics
+from training.settings import LinearSettings
 
 sys.path.insert(0, str(ROOT))
 from baseline.evaluate import CATEGORIES, macro_f1
@@ -33,8 +34,11 @@ def main(argv=None):
     parser.add_argument("--output-dir", type=Path, default=SOLUTION / "models")
     parser.add_argument("--report-dir", type=Path, default=SOLUTION / "reports/training")
     parser.add_argument("--history", type=Path, default=ROOT / "data/history.jsonl", help="開發用 history.jsonl；不可使用 dev")
+    parser.add_argument("--settings-json", default="{}",
+                        help="LR／SVC 訓練參數 JSON（見 training/settings.py 的 LinearSettings）；未填使用預設配方")
     args = parser.parse_args(argv)
     try:
+        settings = LinearSettings.from_dict(json.loads(args.settings_json), "tfidf")
         history = args.history  # load_history rejects dev names and symlinks.
         tickets, gold = load_history(history)
         codes = load_json(ROOT / "data/error_codes.json")
@@ -61,6 +65,7 @@ def main(argv=None):
                       "validation_ids": [tickets[i].ticket_id for i in validation],
                       "purged_train_ids": [tickets[i].ticket_id for i in purged],
                       "train_categories": dict(Counter(str(c) for c in train_labels))},
+            "settings": settings.to_dict("tfidf"),
             "selection_metric": "standalone six-class macro-F1 including unknown; ties prefer masked; no dev selection",
             "candidates": [],
         }
@@ -77,7 +82,7 @@ def main(argv=None):
                     if masked:
                         texts = [resolver.mask_names(text) for text in texts]
                     started = perf_counter()
-                    bundle = fit_bundle([texts[i] for i in train], train_labels, method, masked)
+                    bundle = fit_bundle([texts[i] for i in train], train_labels, method, masked, settings)
                     fit_seconds = perf_counter() - started
                     classifier = LinearTextClassifier(bundle, codes)
                     raw_model = [str(c) for c in bundle["category_model"].predict(
@@ -111,11 +116,11 @@ def main(argv=None):
             if result["masked"]:
                 texts = [resolver.mask_names(text) for text in texts]
             labels = [gold[t.ticket_id]["category"] for t in tickets]
-            bundle = fit_bundle(texts, labels, result["method"], result["masked"])
+            bundle = fit_bundle(texts, labels, result["method"], result["masked"], settings)
             metadata = {"method": result["method"], "masked": result["masked"], "history_sha256": manifest["history_sha256"],
                         "history_count": len(tickets), "labelled_count": sum(c is not None for c in labels),
                         "null_count": labels.count(None), "source_sha256": hashes, "provenance": PROVENANCE,
-                        "recipe": {"analyzer": "char", "ngram_range": [2, 4], "C": 1.0, "class_weight": "balanced",
+                        "recipe": {**settings.to_dict("tfidf"),
                                    "information_gate": "separate balanced LogisticRegression, not category confidence"},
                         "history_validation": result, "training_run": run_id}
             saved = save_model(args.output_dir / f"{result['name']}.joblib", bundle, metadata)
@@ -125,7 +130,7 @@ def main(argv=None):
         atomic_write(report_dir / "training.json", json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
         print(json.dumps({"report_dir": str(report_dir), "train": len(train), "validation": len(validation),
                           "purged": len(purged), "selected": winners, "candidates": manifest["candidates"]}, ensure_ascii=False, indent=2))
-    except (OSError, ValueError, KeyError) as exc:
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"訓練失敗：{exc}", file=sys.stderr)
         return 2
     return 0

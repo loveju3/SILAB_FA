@@ -65,6 +65,25 @@ class LinearTest(unittest.TestCase):
                 self.assertEqual(set(bundle["category_model"].classes_), set(self.labels) - {None})
                 self.assertEqual(set(bundle["information_model"].classes_), {"known", "unknown"})
 
+    def test_settings_reach_vectorizer_and_heads(self):
+        from training.settings import LinearSettings
+        default = self.fit(self.texts, self.labels, "tfidf-lr", False)
+        self.assertEqual((default["vectorizer"].ngram_range, default["category_model"].C,
+                          default["category_model"].class_weight), ((2, 4), 1.0, "balanced"))
+        settings = LinearSettings(c=.25, class_weight="none", information_c=3.0, svc_max_iter=800,
+                                  analyzer="char_wb", ngram_min=1, ngram_max=2, max_features=100, sublinear_tf=False)
+        for method in ("tfidf-lr", "tfidf-svc"):
+            with self.subTest(method=method):
+                bundle = self.fit(self.texts, self.labels, method, False, settings)
+                vectorizer, head = bundle["vectorizer"], bundle["category_model"]
+                self.assertEqual((vectorizer.analyzer, vectorizer.ngram_range, vectorizer.sublinear_tf),
+                                 ("char_wb", (1, 2), False))
+                self.assertLessEqual(len(vectorizer.vocabulary_), 100)
+                self.assertEqual((head.C, head.class_weight), (.25, None))
+                self.assertEqual(bundle["information_model"].C, 3.0)
+                if method == "tfidf-svc":
+                    self.assertEqual(head.max_iter, 800)
+
     def test_model_roundtrip_code_override_and_integrity_check(self):
         from triage.linear import LinearTextClassifier, save_model
         for method in ("tfidf-lr", "tfidf-svc"):

@@ -73,3 +73,58 @@ class ModalSettings:
             if type(value) is not int or not low <= value <= high:
                 raise ValueError(f'Modal {name} 須為 {low}～{high} 的整數')
         return result
+
+
+@dataclass(frozen=True)
+class LinearSettings:
+    """TF-IDF／凍結 BGE 的 LR／SVC 訓練參數；預設值即原本固定的配方。
+
+    分類頭欄位兩種訓練都用；TF-IDF 特徵欄位只在 TF-IDF 訓練時使用。
+    """
+    c: float = 1.0
+    class_weight: str = "balanced"
+    information_c: float = 1.0
+    lr_max_iter: int = 2000
+    svc_max_iter: int = 5000
+    analyzer: str = "char"
+    ngram_min: int = 2
+    ngram_max: int = 4
+    min_df: int = 1
+    max_features: int = 0
+    sublinear_tf: bool = True
+
+    HEAD_FIELDS = ("c", "class_weight", "information_c", "lr_max_iter", "svc_max_iter")
+    TFIDF_FIELDS = ("analyzer", "ngram_min", "ngram_max", "min_df", "max_features", "sublinear_tf")
+
+    @classmethod
+    def from_dict(cls, values=None, kind="tfidf"):
+        values = {} if values is None else values
+        allowed = cls.HEAD_FIELDS + (cls.TFIDF_FIELDS if kind == "tfidf" else ())
+        if not isinstance(values, dict) or set(values) - set(allowed):
+            raise ValueError("不支援的 LR／SVC 訓練設定" + ("；凍結 BGE 不使用 TF-IDF 特徵設定" if kind != "tfidf" else ""))
+        result = cls(**values)
+        for name, (low, high) in {"c": (1e-3, 1e3), "information_c": (1e-3, 1e3)}.items():
+            value = getattr(result, name)
+            if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
+                raise ValueError(f"{name} 必須介於 {low} 與 {high}")
+        for name, (low, high) in {"lr_max_iter": (100, 100000), "svc_max_iter": (100, 100000),
+                                  "ngram_min": (1, 6), "ngram_max": (1, 6), "min_df": (1, 50),
+                                  "max_features": (0, 1000000)}.items():
+            value = getattr(result, name)
+            if type(value) is not int or not low <= value <= high:
+                raise ValueError(f"{name} 必須為 {low}～{high} 的整數")
+        if result.class_weight not in ("balanced", "none"):
+            raise ValueError("class_weight 只能是 balanced 或 none")
+        if result.analyzer not in ("char", "char_wb"):
+            raise ValueError("analyzer 只能是 char 或 char_wb")
+        if result.ngram_min > result.ngram_max:
+            raise ValueError("ngram_min 不可大於 ngram_max")
+        if 0 < result.max_features < 100:
+            raise ValueError("max_features 填 0 代表不限制，否則至少 100")
+        if type(result.sublinear_tf) is not bool:
+            raise ValueError("sublinear_tf 必須為 true 或 false")
+        return result
+
+    def to_dict(self, kind="tfidf"):
+        values = asdict(self)
+        return {k: values[k] for k in self.HEAD_FIELDS + (self.TFIDF_FIELDS if kind == "tfidf" else ())}

@@ -22,6 +22,7 @@ from triage.text import classification_text
 from training.data import history_split, load_history
 from training.evaluation import CATEGORIES, PROVENANCE, category_metrics, macro_f1
 from training.linear import fit_heads
+from training.settings import LinearSettings
 
 sys.path.insert(0, str(ROOT))
 from helper_tool.evaluate import analyze
@@ -43,8 +44,11 @@ def main(argv=None):
     parser.add_argument("--model-dir", type=Path, default=SOLUTION / "models")
     parser.add_argument("--report-dir", type=Path, default=SOLUTION / "reports/training-c")
     parser.add_argument("--history", type=Path, default=ROOT / "data/history.jsonl", help="開發用 history.jsonl；不可使用 dev")
+    parser.add_argument("--settings-json", default="{}",
+                        help="LR／SVC 訓練參數 JSON（見 training/settings.py 的 LinearSettings）；未填使用預設配方")
     args = parser.parse_args(argv)
     try:
+        settings = LinearSettings.from_dict(json.loads(args.settings_json), "bge-frozen")
         history = args.history
         tickets, gold = load_history(history)
         codes = load_json(ROOT / "data/error_codes.json")
@@ -73,7 +77,7 @@ def main(argv=None):
                     "encoder": encoder.manifest, "encoder_load_seconds": load_seconds,
                     "recipe": {"pooling": "CLS", "normalize": "L2", "max_length": 512,
                                "batch_size": 16, "cpu_threads": 2, "retrieval_instruction": False,
-                               "frozen_encoder": True, "head_C": 1.0, "class_weight": "balanced"},
+                               "frozen_encoder": True, **settings.to_dict("bge-frozen")},
                     "versions": {p: importlib.metadata.version(p) for p in
                                  ("torch", "transformers", "numpy", "scikit-learn", "tokenizers")},
                     "split": {"train_ids": [tickets[i].ticket_id for i in train],
@@ -98,7 +102,7 @@ def main(argv=None):
                 for method in ("bge-lr", "bge-svc"):
                     name = f"{method}-{'masked' if masked else 'raw'}"
                     began = perf_counter()
-                    heads = fit_heads(vectors[train], [labels[i] for i in train], method)
+                    heads = fit_heads(vectors[train], [labels[i] for i in train], method, settings)
                     fit_seconds = perf_counter() - began
                     classifier = BgeClassifier({**heads, "mask_device_names": masked}, codes,
                                                CachedEmbeddings(texts, vectors))
@@ -124,7 +128,7 @@ def main(argv=None):
         atomic_write(report_dir / "selection.json", json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
         manifest["artifacts"] = []
         for result in manifest["candidates"]:
-            heads = fit_heads(cached[result["masked"]], labels, result["method"])
+            heads = fit_heads(cached[result["masked"]], labels, result["method"], settings)
             bundle = {**heads, "mask_device_names": result["masked"], "encoder_folder": directory.name, "batch_size": 16}
             metadata = {"method": result["method"], "masked": result["masked"], "history_count": len(tickets),
                         "labelled_count": sum(c is not None for c in labels), "null_count": labels.count(None),
@@ -138,7 +142,7 @@ def main(argv=None):
         atomic_write(report_dir / "training.json", json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
         print(json.dumps({"report_dir": str(report_dir), "train": len(train), "validation": len(validation),
                           "purged": len(purged), "selected": winners, "candidates": manifest["candidates"]}, ensure_ascii=False, indent=2))
-    except (OSError, ValueError, KeyError) as exc:
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"訓練失敗：{exc}", file=sys.stderr)
         return 2
     return 0

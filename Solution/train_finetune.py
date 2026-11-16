@@ -15,7 +15,7 @@ SOLUTION = Path(__file__).resolve().parent
 ROOT = SOLUTION.parent
 sys.path.insert(0, str(ROOT))
 from Solution.triage.io import atomic_write
-from Solution.training.settings import FineTuneSettings
+from Solution.training.settings import FineTuneSettings, LinearSettings
 
 
 def main():
@@ -70,8 +70,10 @@ def main():
             if config['kind'] == 'bge-frozen':
                 shutil.copytree(SOLUTION / 'models/bge-small-zh-v1.5', directory / 'models/bge-small-zh-v1.5',
                                 ignore=shutil.ignore_patterns('.cache'))
+            linear = LinearSettings.from_dict(config.get('linear_settings'), config['kind'])
             command = [sys.executable, str(SOLUTION / script), '--history', str(history), option, str(directory / 'models'),
-                       '--report-dir', str(directory / 'reports')]
+                       '--report-dir', str(directory / 'reports'),
+                       '--settings-json', json.dumps(linear.to_dict(config['kind']))]
             notify('stage', message='執行既有四候選比較，完成後保存到本次時間戳目錄', command=command)
             subprocess.run(command, check=True, **({'pass_fds': (args.lock_fd,)} if args.lock_fd >= 0 else {}))
             reports = list((directory / 'reports').glob('*/training.json'))
@@ -79,6 +81,7 @@ def main():
                 raise ValueError('訓練報告缺失或不唯一，不能標記為完成')
             manifest = json.loads(reports[0].read_text(encoding='utf-8'))
             comparison = {"refit_full_history": True, "split": manifest['split'],
+                          "linear_settings": linear.to_dict(config['kind']),
                           "provenance": manifest.get('provenance', ''), "results": [
                 {"variant": r['name'], "method": r['method'],
                  "model_path": str(directory / 'models' / (r['name'] + '.joblib')),
