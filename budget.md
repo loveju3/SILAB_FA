@@ -4,6 +4,8 @@
 
 ## 怎麼跑
 
+> **2026-11-16 可重現證據：** `scripts/collect_evidence.py` 在 2 GiB 硬上限下重跑了 A 與 C-FT 各三次完整 2,000 筆，全部通過，並證明限制會擋下 2.5 GiB 配置；每次的時間、逐筆秒數與輸出雜湊在 [evidence/2026-11-16-linux-vm](evidence/2026-11-16-linux-vm/README.md)。
+
 ```bash
 python3 predict.py data/tickets.jsonl tickets_predictions_2gb.jsonl --mem-limit 2g
 ```
@@ -47,7 +49,7 @@ A 在 2 GiB 容器內與原生執行的 dev／tickets 預測逐位元相同，�
 
 - **先砍分類模型，因為它是唯一吃記憶體的部分**；設備、urgency、重複報修本來就是規則，搬到 2 GB 不必犧牲。
 - 掉最多的是 duplicate（−0.081）：重複報修的比對鍵包含設備與故障類別，分類一錯就找不到前一張；A 的口語分類召回不足會連鎖拉低 duplicate。
-- C-FT 的峰值約 590 MiB，理論上可能塞進 2 GiB，但目前**還沒有**在 2 GiB 容器跑完整 2,000 筆的證據（只有單筆 smoke）；A 則已有完整容器驗證且留下 60 倍以上的餘裕。在證據不足時選擇已驗證、餘裕大的方案。固定 BGE＋LR／SVC 已在 2 GiB 容器跑完 2,000 筆（峰值約 500 MiB，見 [Solution/budget.md](Solution/budget.md#方案-c完整-bge-encoder-與分類頭的-2-gb-驗證)），但它們沒有 dev 分數，因此不拿來當 2 GB 版本。
+- C-FT 的峰值約 570–600 MiB。2026-11-16 已在 2 GiB 位址空間硬上限（RLIMIT_AS）下跑完三次完整 2,000 筆（約 23 秒，見 [evidence](evidence/2026-11-16-linux-vm/README.md)），但還沒有 Docker cgroup 容器的驗證；A 則有完整容器驗證且峰值約 30 MiB。2 GB 版本仍選 A：證據最完整、餘裕最大，也是「最壞情況」的保底。固定 BGE＋LR／SVC 已在 2 GiB 容器跑完 2,000 筆（峰值約 500 MiB，見 [Solution/budget.md](Solution/budget.md#方案-c完整-bge-encoder-與分類頭的-2-gb-驗證)），但它們沒有 dev 分數，因此不拿來當 2 GB 版本。
 
 ## 5. 有沒有放棄某一欄
 
@@ -55,4 +57,4 @@ A 在 2 GiB 容器內與原生執行的 dev／tickets 預測逐位元相同，�
 
 ## 下一步
 
-讓 `Solution/scripts/run_budget.py` 支援 `bge-finetuned`，在 2 GiB 容器跑完整 2,000 筆與 dev；若峰值與時間都守得住，2 GB 版本可直接沿用 C-FT，不必為記憶體換方案。
+在 Docker cgroup v2 容器（`--memory=2g --memory-swap=2g`）跑 C-FT 的完整 2,000 筆與 dev；若通過，2 GB 版本可直接沿用 C-FT，不必為記憶體換方案、也就不必掉分。

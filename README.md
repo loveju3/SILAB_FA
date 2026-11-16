@@ -28,7 +28,7 @@ python3 run_demo.py                 # dev 評分、兩份 tickets 預測、ask.p
 | `predict.py`（`python3 predict.py <輸入> <輸出>`） | [predict.py](predict.py)，預設使用 BGE 聯合微調；模型不存在時退回方案 A 並在 stderr 警告 |
 | `tickets_predictions.jsonl` | [tickets_predictions.jsonl](tickets_predictions.jsonl)（`run_demo.py` 會重新產生） |
 | 選型對照表 | [技術選型對照表](技術選型對照表.md)，以及本文[第 6 段](#6-放棄或暫不採用的做法以及原因) |
-| `bench.md`（dev 四欄、總時間、P50／P95／最大、方案對照） | [bench.md](bench.md) |
+| `bench.md`（dev 四欄、總時間、P50／P95／最大、方案對照） | [bench.md](bench.md)；可重現的原始量測（含逐筆秒數、2 GiB 限制驗證）在 [evidence/](evidence/2026-11-16-linux-vm/README.md)，用 `scripts/collect_evidence.py` 產生 |
 | 2 GB 版本 | `python3 predict.py <輸入> <輸出> --mem-limit 2g`（方案 A） |
 | `tickets_predictions_2gb.jsonl` | [tickets_predictions_2gb.jsonl](tickets_predictions_2gb.jsonl) |
 | `budget.md` | [budget.md](budget.md)（完整證據：[Solution/budget.md](Solution/budget.md)） |

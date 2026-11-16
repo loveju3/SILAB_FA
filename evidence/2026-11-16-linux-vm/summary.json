@@ -1,0 +1,137 @@
+{
+  "environment": {
+    "measured_at_utc": "2026-11-16T08:27:53+00:00",
+    "platform": "Linux-6.8.0-138-generic-aarch64-with-glibc2.35",
+    "machine": "aarch64",
+    "cpu_count": 4,
+    "memory_total_bytes": 4096499712,
+    "python": "3.13.16",
+    "git_head": "0e879a7f3ee15a8257ebe05ae200e064e8f7b571",
+    "git_dirty_files": [],
+    "tickets_sha256": "1cc95e29378e5143e1d84a3a18837a3012c9dce60365503e06d6c0820e4b49fc",
+    "finetuned_heads_sha256": "71266a9247df08bad3f27914d1965e5d8b8f5c7a821bf19bfb387e5283268fcc",
+    "env_threads": {
+      "OMP_NUM_THREADS": "2",
+      "OPENBLAS_NUM_THREADS": "2"
+    }
+  },
+  "probe_2gib": {
+    "allocation_bytes": 2684354560,
+    "exit_code": 1,
+    "blocked": true,
+    "error_tail": [
+      "MemoryError"
+    ],
+    "rlimit_readback": "(2147483648, 2147483648)"
+  },
+  "groups": {
+    "bge-finetuned": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        23.32,
+        24.865
+      ],
+      "p50_ms": [
+        40.829,
+        43.556
+      ],
+      "p95_ms": [
+        124.822,
+        135.373
+      ],
+      "max_ms": [
+        155.047,
+        194.557
+      ],
+      "peak_rss_mib": [
+        570.0,
+        598.0
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": "是"
+    },
+    "bge-finetuned 2GiB": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        23.104,
+        23.639
+      ],
+      "p50_ms": [
+        40.195,
+        41.119
+      ],
+      "p95_ms": [
+        123.923,
+        128.291
+      ],
+      "max_ms": [
+        154.504,
+        189.334
+      ],
+      "peak_rss_mib": [
+        567.5,
+        578.2
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": null
+    },
+    "rules": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        1.888,
+        1.958
+      ],
+      "p50_ms": [
+        0.913,
+        0.925
+      ],
+      "p95_ms": [
+        1.141,
+        1.408
+      ],
+      "max_ms": [
+        6.41,
+        7.249
+      ],
+      "peak_rss_mib": [
+        26.6,
+        26.6
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": null
+    },
+    "rules 2GiB": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        1.882,
+        1.944
+      ],
+      "p50_ms": [
+        0.903,
+        0.928
+      ],
+      "p95_ms": [
+        1.086,
+        1.158
+      ],
+      "max_ms": [
+        6.541,
+        27.597
+      ],
+      "peak_rss_mib": [
+        26.6,
+        26.6
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": "是"
+    }
+  }
+}
