@@ -210,7 +210,7 @@ def main():
     for path in sorted((folder / "runs").glob("*.json")):
         key = (path.stem[:-5], True) if path.stem.endswith("-2gib") else (path.stem, False)
         groups.setdefault(key, json.loads(path.read_text(encoding="utf-8")))
-    order = {m: i for i, m in enumerate(["bge-finetuned", "rules"])}
+    order = {m: i for i, m in enumerate(["bge-finetuned", "rules", "tfidf-lr", "tfidf-svc", "bge-lr", "bge-svc"])}
     groups = dict(sorted(groups.items(), key=lambda item: (order.get(item[0][0], 9), item[0][1])))
     probe_result = probe() if linux else None
     summary = {"environment": env, "probe_2gib": probe_result,

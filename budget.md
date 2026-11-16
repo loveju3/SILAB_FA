@@ -49,7 +49,7 @@ A 在 2 GiB 容器內與原生執行的 dev／tickets 預測逐位元相同，�
 
 - **先砍分類模型，因為它是唯一吃記憶體的部分**；設備、urgency、重複報修本來就是規則，搬到 2 GB 不必犧牲。
 - 掉最多的是 duplicate（−0.081）：重複報修的比對鍵包含設備與故障類別，分類一錯就找不到前一張；A 的口語分類召回不足會連鎖拉低 duplicate。
-- C-FT 的峰值約 570–600 MiB。2026-11-16 已在 2 GiB 位址空間硬上限（RLIMIT_AS）下跑完三次完整 2,000 筆（約 23 秒，見 [evidence](evidence/2026-11-16-linux-vm/README.md)），但還沒有 Docker cgroup 容器的驗證；A 則有完整容器驗證且峰值約 30 MiB。2 GB 版本仍選 A：證據最完整、餘裕最大，也是「最壞情況」的保底。固定 BGE＋LR／SVC 已在 2 GiB 容器跑完 2,000 筆（峰值約 500 MiB，見 [Solution/budget.md](Solution/budget.md#方案-c完整-bge-encoder-與分類頭的-2-gb-驗證)），但它們沒有 dev 分數，因此不拿來當 2 GB 版本。
+- C-FT 的峰值約 570–600 MiB。2026-11-16 已在 2 GiB 位址空間硬上限（RLIMIT_AS）下跑完三次完整 2,000 筆（約 23 秒，見 [evidence](evidence/2026-11-16-linux-vm/README.md)），但還沒有 Docker cgroup 容器的驗證；A 則有完整容器驗證且峰值約 30 MiB。2 GB 版本仍選 A：證據最完整、餘裕最大，也是「最壞情況」的保底。固定 BGE＋LR／SVC 已在 2 GiB 容器跑完 2,000 筆（峰值約 500 MiB，見 [Solution/budget.md](Solution/budget.md#方案-c完整-bge-encoder-與分類頭的-2-gb-驗證)），2026-11-16 補測的 dev 分數為 C-LR 0.865、C-SVC 0.918，都低於 C-FT，不比 C-FT 更適合當 2 GB 版本。
 
 ## 5. 有沒有放棄某一欄
 

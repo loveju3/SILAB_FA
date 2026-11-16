@@ -1,0 +1,247 @@
+{
+  "environment": {
+    "measured_at_utc": "2026-11-16T09:21:27+00:00",
+    "platform": "Linux-6.8.0-138-generic-aarch64-with-glibc2.35",
+    "machine": "aarch64",
+    "cpu_count": 4,
+    "memory_total_bytes": 4096499712,
+    "python": "3.13.16",
+    "git_head": "8ca8a4d9c61047cd723830c83a053b0f0c951d46",
+    "git_dirty_files": [
+      "cripts/collect_evidence.py"
+    ],
+    "tickets_sha256": "1cc95e29378e5143e1d84a3a18837a3012c9dce60365503e06d6c0820e4b49fc",
+    "finetuned_heads_sha256": "71266a9247df08bad3f27914d1965e5d8b8f5c7a821bf19bfb387e5283268fcc",
+    "env_threads": {
+      "OMP_NUM_THREADS": "2",
+      "OPENBLAS_NUM_THREADS": "2"
+    }
+  },
+  "probe_2gib": {
+    "allocation_bytes": 2684354560,
+    "exit_code": 1,
+    "blocked": true,
+    "error_tail": [
+      "MemoryError"
+    ],
+    "rlimit_readback": "(2147483648, 2147483648)"
+  },
+  "groups": {
+    "tfidf-lr": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        10.34,
+        12.471
+      ],
+      "p50_ms": [
+        5.227,
+        5.96
+      ],
+      "p95_ms": [
+        7.397,
+        11.152
+      ],
+      "max_ms": [
+        16.642,
+        57.595
+      ],
+      "peak_rss_mib": [
+        120.4,
+        120.4
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": null
+    },
+    "tfidf-lr 2GiB": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        9.965,
+        10.205
+      ],
+      "p50_ms": [
+        4.993,
+        5.173
+      ],
+      "p95_ms": [
+        7.132,
+        7.342
+      ],
+      "max_ms": [
+        9.501,
+        16.096
+      ],
+      "peak_rss_mib": [
+        120.4,
+        120.4
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": null
+    },
+    "tfidf-svc": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        10.126,
+        10.423
+      ],
+      "p50_ms": [
+        5.067,
+        5.243
+      ],
+      "p95_ms": [
+        7.308,
+        7.627
+      ],
+      "max_ms": [
+        12.151,
+        24.911
+      ],
+      "peak_rss_mib": [
+        120.3,
+        120.3
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": null
+    },
+    "tfidf-svc 2GiB": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        10.07,
+        10.307
+      ],
+      "p50_ms": [
+        4.998,
+        5.274
+      ],
+      "p95_ms": [
+        7.239,
+        7.447
+      ],
+      "max_ms": [
+        16.28,
+        37.188
+      ],
+      "peak_rss_mib": [
+        120.3,
+        120.3
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": null
+    },
+    "bge-lr": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        27.184,
+        27.873
+      ],
+      "p50_ms": [
+        90.595,
+        95.394
+      ],
+      "p95_ms": [
+        255.004,
+        264.843
+      ],
+      "max_ms": [
+        290.56,
+        305.864
+      ],
+      "peak_rss_mib": [
+        647.8,
+        693.9
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": null
+    },
+    "bge-lr 2GiB": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        26.319,
+        26.91
+      ],
+      "p50_ms": [
+        87.342,
+        92.326
+      ],
+      "p95_ms": [
+        254.212,
+        263.604
+      ],
+      "max_ms": [
+        299.299,
+        345.525
+      ],
+      "peak_rss_mib": [
+        668.6,
+        689.9
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": null
+    },
+    "bge-svc": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        26.626,
+        27.532
+      ],
+      "p50_ms": [
+        87.651,
+        93.198
+      ],
+      "p95_ms": [
+        260.042,
+        269.768
+      ],
+      "max_ms": [
+        284.363,
+        333.799
+      ],
+      "peak_rss_mib": [
+        696.5,
+        702.3
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": null
+    },
+    "bge-svc 2GiB": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        26.83,
+        28.203
+      ],
+      "p50_ms": [
+        89.196,
+        97.993
+      ],
+      "p95_ms": [
+        256.548,
+        269.071
+      ],
+      "max_ms": [
+        290.783,
+        320.339
+      ],
+      "peak_rss_mib": [
+        680.6,
+        700.2
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": null
+    }
+  }
+}
