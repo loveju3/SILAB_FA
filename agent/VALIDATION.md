@@ -50,3 +50,32 @@
 - 真實本機 Qwen3-1.7B Q4、CPU 6 threads，一次固定題庫完整執行：20/30；原始 12 題 11/12、新增 18 題 9/18。含資料準備及存檔總耗時 338.533 秒，逐題合計 337.245 秒，最長單題 16.062 秒。未依本次分數調整 Agent 或挑選重跑結果。
 - 未通過：reporter-count, ticket-detail-text, ticket-detail-reporter, date-local-day, date-empty-day, ranking-tie, device-ticket-match, ticket-unknown, scope-unrelated, scope-keyword-decoy。主要缺口為工單欄位作答／未知工單結果／無關任務拒答，以及回報人、時區單日、日期空結果、排名同分與設備字面條件理解。
 - 本機報告：`helper_tool/reports/agent/20261115-095644-989141-866302d3/report.json`；UI 可選取同一工作 ID 檢視。完整 trace 與報告遵守 Git 忽略規則、不上傳。報告保存實際程式、題庫、對照表及模型雜湊。這是合成開發評測；本次未讀取 dev，不代表泛化成績。
+
+## 2026-11-16 合成 Evals v3：貼近隱藏題的題型
+
+依 HW_RULES 第二部分的隱藏題描述（14 題、口語問法、以快照時間為「今天」、只比對 `answer`，`evidence` 只檢查格式）重新設計題庫。本次只修改題庫、評測腳本與相關測試，**沒有修改 Agent 工具、提示詞或模型**；題目來源只有人工合成工單與公開設備表／錯誤碼表，未讀取 dev。
+
+**題庫變更（30 → 41 題，合成工單 8 → 13 筆）**
+
+- 新增 5 筆含真實雜訊的合成工單：簡體「空压机」、少連字號的「AC75／E01」、`□`、指涉同一回報人上一張的「跟上一張同一台」，以及剛好落在「快照回推 3 天」邊界上（SYN009）與早 1 秒（SYN010）的工單。fixture 以 `semantic_devices` 記錄每張工單的人工語意設備，作為語意題的預期答案依據。
+- 新增 12 題，分成四類：口語版（`natural_language`，以 `paired_with` 對應原本寫明規格的題目）、相對時間（`relative_time`）、多步查詢（`multi_step`，以 `expected_tools` 記錄應呼叫的工具，僅供診斷不計分）、真實雜訊（`noisy_text`）。
+- 刪除 `scope-unrelated`。`ticket-unknown` 與 `scope-keyword-decoy` 的預期答案從自訂的 `{"status": ...}` 改為 `null`，因為題目規定 `answer` 只能是裸值。
+- 因新增工單而重算的舊答案：`count-all`、`instruction-override` 8→13，`utc-inclusive` 7→12，`ranking-tie` 改為測試丁、測試丙同分。所有計數與排名題的答案都以獨立腳本從工單和語意標記重算核對，另用實際工具確認字面查詢結果（D01 字面 3 張、近 7 天字面最多的是 D02）。
+
+**開發組與保留組**
+
+5 題標為 `holdout`：`natural-oct1-day`、`natural-code-meaning`、`relative-3days-boundary`、`multi-location-today`、`multi-location-critical`。`evals/run.py` 預設只跑 `dev`，UI 也只計算 dev 題數。保留組要等 `ask.py` 版本凍結後才以 `--split holdout` 跑一次，不得依該結果回頭修改；報告分開列出兩組分數。題目由同一位開發者撰寫，保留組只能避免「對題調參」，不能證明是獨立測試。
+
+**已知歧義**
+
+- 「最近 3 天」依 Agent 提示詞定義為從快照回推 72 小時（含邊界），預期為 8 張；若以日曆日解讀（10-12 起）會得到 7 張。隱藏題的解讀方式未知。
+- 語意題（`natural-device-count`、`relative-top-device`、`multi-location-today`）的預期答案包含簡體、錯字與指涉；目前工具只做字面匹配，預期會答錯，用來揭露限制，不是要求立即修好。
+
+**評分說明**
+
+本評分要求 evidence 完全吻合，比隱藏題只檢查 evidence 格式更嚴；`expected_tools` 只做診斷，不影響是否通過。報告的 `by_category` 依題型列出通過率。
+
+**驗證狀態**
+
+- Python 59 項測試通過（evals、巡檢報告、helper UI、Agent），Node UI 呈現契約通過。
+- **v3 題庫尚未以本機模型實跑**：執行環境沒有 `.venv` 與 `agent_assets/`，只確認 `run.py` 的流程（缺模型時正確判為失敗）。實跑分數待補，屆時依類別填入通過率，並寫出原本預期會過、結果沒過的題目。上方 20/30 是 v2 題庫的成績，不能與 v3 比較。

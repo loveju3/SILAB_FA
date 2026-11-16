@@ -75,7 +75,7 @@ class AgentTests(unittest.TestCase):
     def test_top_reporter_uses_all_tickets_and_ties(self):
         self.assertEqual(self.store.call("query_tickets", {"operation": "top_reporter"})["answer"], "測試乙")
         result = self.store.call("query_tickets", {"operation": "top_reporter", "since": "2026-10-14T00:00:00Z"})
-        self.assertEqual(result["answer"], sorted(["測試丙", "測試丁", "測試乙"]))
+        self.assertEqual(result["answer"], sorted(["測試丙", "測試丁"]))
 
     def test_no_matches_is_not_error(self):
         result = self.store.call("query_tickets", {"operation": "count", "contains_any": ["隕石"]})
@@ -118,7 +118,7 @@ class AgentTests(unittest.TestCase):
         actions = [{"tool": "query_tickets", "arguments": {"operation": "count"}},
                    {"tool": "finish", "result_id": 0}]
         result = self.run_agent(actions)
-        self.assertEqual(result["answer"], 8)
+        self.assertEqual(result["answer"], len(self.fixture["tickets"]))
         self.assertEqual(result["tools_used"], ["query_tickets"])
 
     def test_model_can_repair_bad_arguments(self):
@@ -209,6 +209,35 @@ class AgentTests(unittest.TestCase):
             rank_candidates(Model(), candidates)
         self.assertEqual(rank_candidates(Model(), []), [])
         self.assertEqual(len(rank_candidates(Model(), candidates[:3])), 3)
+
+    def test_patrol_safety_tickets_bypass_model_and_signature_is_dropped(self):
+        self.store.devices = [{"device_id": "D01", "name": "合成主機", "model": "FAKE-01", "critical": True}]
+        texts = ["D01 漏電 摸外殼會麻麻的", "D01 異音\n\n-- \n從我的 iPhone 傳送"] + [f"D01 數值亂跳{i}" for i in range(12)]
+        rows = [{**self.fixture["tickets"][0], "ticket_id": f"FAKE{i}", "raw_text": text}
+                for i, text in enumerate(texts)]
+        self.path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+        candidates = prioritize_candidates(shortlist(self.store))
+        self.assertEqual(candidates[0]["safety_terms"], ["漏電"])
+        self.assertNotIn("iPhone", next(r for r in candidates if r["ticket_id"] == "FAKE1")["raw_text"])
+        seen = []
+        class Model:
+            def decide(self, messages, schema, max_tokens):
+                batch = json.loads(messages[1]["content"])
+                seen.extend(row["ticket_id"] for row in batch)
+                return {"items": [{"ticket_id": row["ticket_id"], "priority": "medium"} for row in batch[:9]]}
+        output = rank_candidates(Model(), candidates)
+        self.assertEqual(len(output), 10)
+        self.assertEqual((output[0]["ticket_id"], output[0]["priority"]), ("FAKE0", "high"))
+        self.assertIn("漏電", output[0]["reason"])
+        self.assertNotIn("FAKE0", seen)
+        raw = {row["ticket_id"]: row["raw_text"] for row in rows}
+        for item in output:
+            quote = item["reason"][item["reason"].index("「") + 1:item["reason"].index("」")]
+            self.assertIn(quote, raw[item["ticket_id"]])
+            self.assertNotIn("iPhone", quote)
+        # Ten or more safety tickets: no model call at all.
+        many = [{**row, "safety_terms": ["冒煙"], "safety_term_count": 1} for row in candidates[:10]]
+        self.assertEqual([r["priority"] for r in rank_candidates(None, many)], ["high"] * 10)
 
     def test_patrol_rejects_duplicate_ids_and_fabricated_quotes(self):
         candidates = [{"ticket_id": "S1", "raw_text": "設備冒煙需要處理"},

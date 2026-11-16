@@ -54,7 +54,8 @@ class AgentJobsTest(unittest.TestCase):
             result = jobs.start_job({"kind": "synthetic", "threads": 4})
             self.assertEqual(result["state"], "queued")
             fixture = json.loads((jobs.ROOT / "evals/fixtures.json").read_text(encoding="utf-8"))
-            self.assertEqual(result["total"], len(fixture["cases"]))
+            # The UI runs evals/run.py with its default dev split; holdout cases are not counted.
+            self.assertEqual(result["total"], sum(c.get("split", "dev") == "dev" for c in fixture["cases"]))
             self.assertIn("helper_tool.agent_jobs", launch.call_args.args[0])
             self.assertEqual(jobs.list_jobs()[0]["job_id"], result["job_id"])
             with self.assertRaisesRegex(ValueError, "已有"):

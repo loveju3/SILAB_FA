@@ -38,6 +38,41 @@ class EvalContracts(unittest.TestCase):
                                 (2, ["S1", "S1"]), (2, []), (2, ["UNKNOWN"])):
             self.assertFalse(run.grade_answer(case, {"answer": value, "evidence": evidence}, {"S1", "S2", "S3"}))
 
+    def test_fixture_follows_answer_format_and_snapshot(self):
+        from agent.tools import SNAPSHOT
+        fixture = json.loads((run.ROOT / "evals/fixtures.json").read_text(encoding="utf-8"))
+        self.assertEqual(fixture["snapshot"], SNAPSHOT)
+        ids = {t["ticket_id"] for t in fixture["tickets"]}
+        self.assertEqual(set(fixture["semantic_devices"]), ids)
+        case_ids = {c["id"] for c in fixture["cases"]}
+        for case in fixture["cases"]:
+            # HW_RULES: answer is a bare value; no invented {"status": ...} objects.
+            self.assertNotIsInstance(case["answer"], dict, case["id"])
+            self.assertIn(case.get("split", "dev"), ("dev", "holdout"), case["id"])
+            self.assertLessEqual(set(case.get("expected_evidence", [])), ids, case["id"])
+            self.assertLessEqual(len(case.get("expected_evidence", [])), 20, case["id"])
+            if "paired_with" in case:
+                self.assertIn(case["paired_with"], case_ids, case["id"])
+        self.assertTrue(any(c.get("split") == "holdout" for c in fixture["cases"]))
+
+    def test_split_selection_and_category_summary(self):
+        cases = [{"id": "a"}, {"id": "b", "split": "dev"}, {"id": "c", "split": "holdout"}]
+        self.assertEqual([c["id"] for c in run.select_cases(cases)], ["a", "b"])
+        self.assertEqual([c["id"] for c in run.select_cases(cases, split="holdout")], ["c"])
+        self.assertEqual(len(run.select_cases(cases, split="all")), 3)
+        self.assertEqual([c["id"] for c in run.select_cases(cases, "c")], ["c"])  # explicit --case
+        rows = [{"category": "x", "passed": True}, {"category": "x", "passed": False}, {"passed": True}]
+        self.assertEqual(run.summarize(rows), {"x": {"passed": 1, "total": 2},
+                                               "uncategorized": {"passed": 1, "total": 1}})
+
+    def test_expected_tools_is_diagnostic_only(self):
+        case = {"id": "m", "answer": 1, "evidence_required": False, "expected_tools": ["a", "b"]}
+        answer = {"answer": 1, "evidence": [], "tools_used": ["a"]}
+        self.assertFalse(run.tools_matched(case, answer))
+        self.assertTrue(run.grade_answer(case, answer, set()))
+        self.assertTrue(run.tools_matched(case, {**answer, "tools_used": ["b", "a"]}))
+        self.assertIsNone(run.tools_matched({"id": "n"}, answer))
+
     def test_history_keeps_original_public_cases_and_has_reasons(self):
         fixture = json.loads((run.ROOT / "evals/fixtures.json").read_text(encoding="utf-8"))
         self.assertEqual(len({c["id"] for c in fixture["cases"]}), len(fixture["cases"]))

@@ -149,7 +149,8 @@ def start_job(payload):
         job = {"job_id": job_id, "kind": kind, "threads": threads, "state": "queued",
                "created_at": datetime.now(timezone.utc).isoformat(), "message": "等待啟動 Agent 測試",
                "total": (1 if kind in PATROL_KINDS else
-                         len(json.loads((ROOT / "evals/fixtures.json").read_text(encoding="utf-8"))["cases"])
+                         sum(c.get("split", "dev") == "dev" for c in json.loads(
+                             (ROOT / "evals/fixtures.json").read_text(encoding="utf-8"))["cases"])
                          if kind == "synthetic" else 12),
                "completed": 0, "passed": 0, "cases": [], "timing": {}}
         save(folder / "status.json", job)

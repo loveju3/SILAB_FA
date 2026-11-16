@@ -43,9 +43,11 @@ class PatrolReportTest(unittest.TestCase):
 
     def test_synthetic_source_is_explicit_and_not_a_real_ticket_mapping(self):
         rows, positions, info = run_patrol.load_source("synthetic")
-        self.assertEqual((info["dataset"], info["count"]), ("synthetic", 12))
+        fixture = json.loads((run_patrol.ROOT / "evals/fixtures.json").read_text(encoding="utf-8"))
+        expected = len(fixture["tickets"]) + 4
+        self.assertEqual((info["dataset"], info["count"]), ("synthetic", expected))
         self.assertTrue(all(row["ticket_id"].startswith("SYN") for row in rows))
-        self.assertEqual(len(positions), 12)
+        self.assertEqual(len(positions), expected)
 
     def test_unknown_source_and_duplicate_ids_rejected(self):
         with self.assertRaises(ValueError):

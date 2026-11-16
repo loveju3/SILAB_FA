@@ -30,7 +30,8 @@ def load_source(dataset):
         name = "data/tickets.jsonl"
     elif dataset == "synthetic":
         fixture = json.loads((ROOT / "evals/fixtures.json").read_text(encoding="utf-8"))
-        values = fixture["tickets"] + [{**row, "ticket_id": f"SYN{index + 9:03}"}
+        start = len(fixture["tickets"]) + 1  # padding IDs must not collide with fixture IDs
+        values = fixture["tickets"] + [{**row, "ticket_id": f"SYN{index + start:03}"}
                                       for index, row in enumerate(fixture["tickets"][:4])]
         data = json.dumps(values, ensure_ascii=False).encode("utf-8")
         entries = list(enumerate(values, 1))
@@ -91,7 +92,7 @@ def main():
               "source_info": source_info,
               "git_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()}
     report["config"] = {"threads": args.threads, "timeout_s": 118, "context": 8192,
-                        "candidate_policy": "critical-device-lexical-v2", "candidate_limit": 30,
+                        "candidate_policy": "critical-device-lexical-v3-safety-first", "candidate_limit": 30,
                         "prefilter": "full-text-safety-term-count-desc-then-created-at-desc",
                         "selection": "llm-top10"}
     report["source_sha256"] = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
