@@ -6,9 +6,12 @@ __pycache__/
 .venv-macos/
 /transfer/
 
-# Input data, ticket predictions and reports stay on this machine.
+# Input data, other predictions and reports stay on this machine.
 /data/
 *.jsonl
+# Required deliverables (HW_RULES): Part 1 predictions for data/tickets.jsonl.
+!/tickets_predictions.jsonl
+!/tickets_predictions_2gb.jsonl
 reports/
 /Solution/predictions/
 /Solution/experiments/*.json

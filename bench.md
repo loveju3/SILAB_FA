@@ -1,6 +1,8 @@
 # 第一部分：CPU 效能與評分量測
 
-本文件是第一部分效能量測的統一交付入口，整合原先 `Solution/bench.md` 中分散的方案 A／B／C 紀錄。**這次只整理既有彙總，沒有重跑模型、開啟 dev 或讀取逐筆錯題。** 數字屬於下列日期與環境，不代表目前工作目錄中所有未提交修改已重新量測。
+本文件是第一部分效能量測的統一交付入口，整合原先 `Solution/bench.md` 中分散的方案 A／B／C 紀錄。A／B／C 的數字轉錄自 2026-11-13 的既有彙總；**2026-11-16 追加了目前預設方案「BGE 聯合微調」的 dev 評分與三次 tickets 量測**（見[追加段落](#2026-11-16-追加bge-聯合微調目前預設)，主機不同）。
+
+**目前 `python3 predict.py <輸入> <輸出>` 的預設是 BGE 聯合微調（C-FT）**；`--mem-limit 2g` 使用方案 A（見 [budget.md](budget.md)）。
 
 ## 環境與範圍
 
@@ -25,14 +27,17 @@
 | B-SVC：TF-IDF＋LinearSVC，遮罩名稱 | 未驗證 | 10.252～10.488 | 4.966～5.077 | 7.106～7.151 | 46.491 | 121.11～121.77 | 單筆獨立處理 |
 | C-LR：固定 BGE＋LR，保留名稱 | 未驗證 | 19.615～21.021 | 48.829～50.382 | 107.579～122.273 | 175.816 | 901.97～984.36 | 完整共享批次服務時間＋單筆其餘處理 |
 | C-SVC：固定 BGE＋LinearSVC，保留名稱 | 未驗證 | 19.099～19.524 | 46.309～48.913 | 108.283～115.486 | 132.636 | 829.78～949.70 | 完整共享批次服務時間＋單筆其餘處理 |
+| **C-FT：BGE 聯合微調（預設）**＊ | 0.944 | 28.251～32.705 | 53.378～65.945 | 156.509～187.666 | 254.879 | 569.37～588.65 | 完整共享批次服務時間＋單筆其餘處理 |
+
+＊C-FT 於 2026-11-16 在**不同主機**量測（Linux arm64 VM、4 vCPU、3 GiB RAM），不能與上方 M4 Max 的列直接比較快慢；兩者都遠低於 480 秒。
 
 已量測方法的三次總時間均低於 480 秒。**C 的 P50／P95／最大值不是 B 的單筆獨立分類延遲，不能直接以這幾欄比較 B／C 快慢，也不能將 C 的逐筆時間相加。** 相同批次的成員會各自記錄該批次的完整共享服務時間；跨方法處理 2,000 筆的總時間可以在揭露設定後比較。
 
-本表僅列已有同口徑完整 tickets 效能紀錄的方案。BGE 聯合微調與其他設計若只有訓練／history 驗證結果，不將它們當作已完成此處的效能量測。採用／暫不採用的依據另見 [選型對照表](技術選型對照表.md) 及 [README 第六段](README.md#6-放棄或暫不採用的做法以及原因)。
+本表僅列已有同口徑完整 tickets 效能紀錄的方案；其他只有訓練／history 驗證結果的設計不列入。採用／暫不採用的依據另見 [選型對照表](技術選型對照表.md) 及 [README 第六段](README.md#6-放棄或暫不採用的做法以及原因)。
 
 ## dev 四欄分數
 
-以下轉錄既有文件記載的官方 `baseline/evaluate.py` 彙總，並非本次重新評分。B／C 尚未完成固定版本的 dev 驗證，維持「未驗證」，不以 history 分數補入。
+baseline 與 A 轉錄既有文件記載的官方 `baseline/evaluate.py` 彙總；C-FT 為 2026-11-16 以同一支 `baseline/evaluate.py` 評分（顯示到小數第三位）。B／C 其餘四種尚未完成固定版本的 dev 驗證，維持「未驗證」，不以 history 分數補入。
 
 | 方案 | category macro-F1 | device accuracy | urgency macro-F1 | duplicate ID F1 | 加權總分 |
 |---|---:|---:|---:|---:|---:|
@@ -42,6 +47,7 @@
 | B-SVC | 未驗證 | 未驗證 | 未驗證 | 未驗證 | 未驗證 |
 | C-LR | 未驗證 | 未驗證 | 未驗證 | 未驗證 | 未驗證 |
 | C-SVC | 未驗證 | 未驗證 | 未驗證 | 未驗證 | 未驗證 |
+| **C-FT：BGE 聯合微調（預設）** | 0.898 | 0.990 | 1.000 | 0.934 | 0.944 |
 
 供區分資料用途，既有 history 內部 category F1 分別為 B-LR 0.746499、B-SVC 0.752058、C-LR 0.793935、C-SVC 0.897928。它們來自 200 筆 fit／90 筆驗證、另排除 10 筆跨界近似模板的選型流程；正式 tickets 效能使用完整 history 重訓後的資產，兩者不是同一份權重，也都不能冒充 dev 成績。
 
@@ -69,6 +75,19 @@ OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 .venv/bin/python Solution/scripts/bench
 ```bash
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 .venv/bin/python Solution/scripts/benchmark.py --method bge-lr --runs 3
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 .venv/bin/python Solution/scripts/benchmark.py --method bge-svc --runs 3
+```
+
+BGE 聯合微調（預設）：
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 .venv/bin/python Solution/scripts/benchmark.py --method bge-finetuned --runs 3
+```
+
+dev 四欄分數（任一方案；`python3 run_demo.py` 會自動執行預設與 2 GB 兩組）：
+
+```bash
+python3 predict.py data/dev.jsonl reports/dev_predictions.jsonl
+python3 baseline/evaluate.py reports/dev_predictions.jsonl data/dev.jsonl
 ```
 
 上方是既有 macOS／Unix shell 的命令形式，不將它們視為 Windows PowerShell 命令。現有 Windows 相容性修改與單次產物生成檢查，也不等於在 Windows 重新完成這張三次量測表。
@@ -114,6 +133,24 @@ A 的 P95 約為 P50 的 1.3～1.5 倍。文本長度、缺字模式匹配與作
 | 1 | 1.902992 | 0.897832 | 1.228126 | 7.136500 | 27.828125 |
 | 2 | 1.894241 | 0.899708 | 1.163209 | 6.521335 | 27.843750 |
 | 3 | 1.948626 | 0.897460 | 1.312334 | 7.710250 | 28.109375 |
+
+## 2026-11-16 追加：BGE 聯合微調（目前預設）
+
+**環境：** Linux 6.8 arm64 VM、4 vCPU、3 GiB RAM、Python 3.13.16、torch 2.9.0+cpu；`OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2`。模型為 `SILAB_FA_bge_finetuned_20261115-082422.zip`（訓練工作 `20261115-082422-580651-ea6d1ae8`，只用 history 訓練）。
+
+**方法：** 與上方相同的 `Solution/scripts/benchmark.py`：三次新程序、無顯式預熱、不清 OS 檔案快取；總時間由外部 `perf_counter()` 包住整個子程序（含 Python 啟動、torch／transformers 與模型載入約 1.4 秒、推論與寫檔）。逐筆時間不含模型載入。
+
+| 執行 | 程序總時間（秒） | P50（ms） | P95（ms） | 最大值（ms） | 峰值 RSS（MiB） |
+|---|---:|---:|---:|---:|---:|
+| 1 | 28.251 | 53.378 | 156.509 | 232.121 | 587.67 |
+| 2 | 31.621 | 63.555 | 187.666 | 221.976 | 569.37 |
+| 3 | 32.705 | 65.945 | 181.567 | 254.879 | 588.65 |
+
+**P95 為何約是 P50 的 3 倍：** encoder 以批次推論，每筆記錄的是「所在批次的完整共享服務時間＋自己的規則處理」；批次內最長的工單決定補齊長度，長文字批次的服務時間明顯較高，所以分布右尾較長。這是計時口徑造成的上界，逐筆時間不能相加。
+
+**可信度檢查：** 三次輸出逐位元相同（同一 MD5），與 `run_demo.py` 產生的 `tickets_predictions.jsonl` 相同；2,000 筆輸入輸出筆數與 ID 相符；外部總時間 ≥ 程序內記錄時間。只有一台 VM、三次執行，未在實體 8 GB 筆電或使用者的 Mac 上重做這組數字。
+
+**預設方法怎麼選的：** A 與 C-FT 是兩個已固定、不再調整的版本，用 dev 各評分一次後選擇 C-FT 為預設（總分 0.944 對 0.909；category 0.898 對 0.849、duplicate 0.934 對 0.853；device 0.990 對 0.993）。之後沒有依 dev 回頭調整模型或規則；`evaluate.py` 會順帶印出幾筆建議範例，這些逐筆內容未用於任何調整。C-FT 仍沿用 A 的設備、正規化與上下文模組，A 的資料來源限制同樣適用。
 
 ## 尚未完成的驗證
 
