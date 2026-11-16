@@ -1,6 +1,6 @@
 # SILAB FA：工單分流程式
 
-第一部分預設使用 **BGE encoder＋分類頭聯合微調**（dev 總分 0.944，見 [bench.md](bench.md)），2 GB 模式使用方案 A 規則版（0.909，見 [budget.md](budget.md)）；另保留方案 B 字元 TF-IDF、方案 C 固定 BGE encoder（B/C 均提供 LR 與 LinearSVC）、評分／查詢 UI、測試、流程圖及彙總效能說明。
+第一部分預設使用 **BGE encoder＋分類頭聯合微調**（dev 總分 0.944，見 [bench.md](bench.md)），2 GB 版本沿用同一個模型（在 Docker 2 GiB 容器內峰值最高 518 MiB，分數不變，見 [budget.md](budget.md)）；另保留方案 B 字元 TF-IDF、方案 C 固定 BGE encoder（B/C 均提供 LR 與 LinearSVC）、評分／查詢 UI、測試、流程圖及彙總效能說明。
 
 第二部分新增獨立的 [離線智慧問答 Agent 初版](agent/README.md)：`ask.py` 模型選擇工具與停止時機、`patrol.py` 候選巡檢及 `evals/` 開發評測。使用本機 Qwen3-1.7B Q4 與 CPU llama.cpp；支援範圍、限制及實測須與第一部分分類成績分開看待。
 
@@ -29,7 +29,7 @@ python3 run_demo.py                 # dev 評分、兩份 tickets 預測、ask.p
 | `tickets_predictions.jsonl` | [tickets_predictions.jsonl](tickets_predictions.jsonl)（`run_demo.py` 會重新產生） |
 | 選型對照表 | [技術選型對照表](技術選型對照表.md)，以及本文[第 6 段](#6-放棄或暫不採用的做法以及原因) |
 | `bench.md`（dev 四欄、總時間、P50／P95／最大、方案對照） | [bench.md](bench.md)；可重現的原始量測（含逐筆秒數、2 GiB 限制驗證）在 [evidence/](evidence/2026-11-16-linux-vm/README.md)，用 `scripts/collect_evidence.py` 產生 |
-| 2 GB 版本 | `python3 predict.py <輸入> <輸出> --mem-limit 2g`（方案 A） |
+| 2 GB 版本 | `python3 predict.py <輸入> <輸出> --mem-limit 2g`（同一個 C-FT，加上 2 GiB 上限；Docker 驗證：`bash scripts/docker_2gb_check.sh`） |
 | `tickets_predictions_2gb.jsonl` | [tickets_predictions_2gb.jsonl](tickets_predictions_2gb.jsonl) |
 | `budget.md` | [budget.md](budget.md)（完整證據：[Solution/budget.md](Solution/budget.md)） |
 | `ask.py`（支援 `--trace`）、`patrol.py` | [ask.py](ask.py)、[patrol.py](patrol.py)，設計見[第 4 段](#4-agent-與評測設計)與 [agent/README.md](agent/README.md) |
@@ -62,7 +62,11 @@ python3 run_demo.py                 # dev 評分、兩份 tickets 預測、ask.p
 
 ## 3. AI 協作故事
 
-協作中，使用者負責提出產品需求、追問設計依據及確認交付方向，Codex 協助查閱規格、設計工具介面、撰寫程式與測試。程式碼、執行結果與模型回覆都需要證據核對，不能因為 AI 說「可行」就當成已完成。
+### 哪些交給 AI、哪些自己決定
+
+協作中，我負責提出產品需求、追問設計依據及確認交付方向；Codex 與 Claude 協助查閱規格、設計工具介面、撰寫程式、測試與整理文件。程式碼、執行結果與模型回覆都需要證據核對，不能因為 AI 說「可行」就當成已完成。資料使用規範（dev 只做固定版本驗證）與最後採用哪個方案，由我決定。
+
+### AI 給過不可靠答案、我怎麼發現的
 
 本次對話有一個直接影響設計說明的追問：
 
@@ -76,6 +80,8 @@ python3 run_demo.py                 # dev 評分、兩份 tickets 預測、ask.p
 
 另一個教訓來自巡檢：模型會把多段症狀改寫成看似合理、卻不是逐字原文的引句；要求模型再修正一次仍不足。因此最後由模型選單與排序，程式從選中的工單擷取原文證據。這讓事實引用的責任落在可驗證的資料操作上。
 
+整理交付時也有三次是靠實測修正原本的計畫：原本打算直接把預設改成微調模型，對照 HW_RULES 才發現它當時沒有 dev 分數與計時，等於拿未量測的模型參加隱藏評分，所以先補量測再決定；AI 寫的安裝腳本在 Linux 測試都通過，我在 Mac 實跑時才發現 python.org 版 Python 沒有 SSL 根憑證、下載失敗，改用系統 curl 修正；`budget.md` 原本把 2 GB 版本換成方案 A，我追問「峰值沒超過 2 GB 為什麼要換」，補做 Docker 2 GiB 實測後改回沿用 C-FT，不再白白掉分。
+
 上述需求節錄與開發摘要可搭配 [ai-log](ai-log/2026-11-14-agent.md) 閱讀；它們不等於完整原始對話匯出，去識別化的原始協作紀錄仍待整理。實際工單、答案及逐筆 trace 不加入 Git。
 
 ## 4. Agent 與評測設計
@@ -84,19 +90,23 @@ python3 run_demo.py                 # dev 評分、兩份 tickets 預測、ask.p
 
 停止條件同時包含模型主動完成、預設最多四次決策，以及含載入與關閉模型的整體 deadline。重複查詢會收到錯誤回饋；超時、超過步數或引用無效結果時明確失敗，不輸出假成功答案。`--trace` 將工具決策、觀察結果與量測寫到 stderr，stdout 保持 JSON。巡檢則先以安全詞與時間產生候選，再交由模型選出優先工單；這項候選策略仍可能漏掉其他措辭的急件。
 
-評測包含 12 題人工合成問答，以及由 history 四欄原文獨立計算預期答案的 12 題開發問答，涵蓋公共表查詢、日期邊界、計數、排名與空結果。兩套各含六題相同的公共表問題，不能視為 24 題互相獨立的測試。每題重新啟動程序並載入模型，同時檢查答案值、型別、引用格式與耗時。
+評測包含 30 題人工合成問答（最初 12 題，之後補了 18 題邊界情境），以及由 history 四欄原文獨立計算預期答案的 12 題開發問答，涵蓋公共表查詢、日期邊界、計數、排名、空結果、未知工單與無關問題拒答。兩套共用六題相同的公共表問題，不能視為互相獨立的測試。每題重新啟動程序並載入模型，同時檢查答案值、型別、引用格式與耗時。
 
-已保存的 Agent 初版開發報告為合成題 11/12、history 12/12；這不是隱藏題成績，也不是本段文字編輯時重新執行的結果。巡檢 smoke 只檢查格式、真實引用與唯一性，不能代替優先排序的人審。操作與設計見 [Agent 文件](agent/README.md)，結果與錯誤見 [驗證紀錄](agent/VALIDATION.md)，評測入口為 [evals/run.py](evals/run.py)。
+最近一次完整執行：合成題 20/30（原始 12 題 11/12、新增 18 題 9/18），history 12/12，最長單題約 16 秒。新增題目刻意放進尚未支援的能力（工單欄位作答、未知工單、無關任務拒答、時區單日、排名同分），這些是打破原本預期、目前仍答錯的地方；沒有依分數回頭調整 Agent。這不是隱藏題成績。巡檢 smoke 只檢查格式、真實引用與唯一性，不能代替優先排序的人審。操作與設計見 [Agent 文件](agent/README.md)，結果與錯誤見 [驗證紀錄](agent/VALIDATION.md)，評測入口為 [evals/run.py](evals/run.py)。
 
 ## 5. 已知限制與下一步
 
-第一部分的兩參數入口預設使用 BGE 聯合微調，`--mem-limit 2g` 使用方案 A，兩份正式預測輸出已放在 repo 根目錄；B／C 其餘方法可透過 `--method` 選擇。預設方法是以 dev 對兩個已固定版本各評分一次後選定，這個選擇本身用到了 dev，已在 [bench.md](bench.md) 揭露。微調版目前只在 Linux VM 完成三次量測，2 GiB 容器只做過單筆 smoke。Windows 原生規則版已補齊記憶體量測相容性並通過開發測試；各模型的環境與歷史效能仍須分開看待。既有 B／C dev 四欄成績與 2 GB 掉分資料尚未完成，不能以 history 回測或 tickets 輸出一致性取代。8 GB 實機驗證未完成的部分已揭露，2 GB 演練則另保存限制與執行證據。
+第一部分的兩參數入口預設使用 BGE 聯合微調，`--mem-limit 2g` 沿用同一個模型並加上 2 GiB 上限，兩份正式預測輸出已放在 repo 根目錄；其他方法可透過 `--method` 選擇。預設方法是以 dev 對兩個已固定版本各評分一次後選定，這個選擇本身用到了 dev，已在 [bench.md](bench.md) 揭露。7 個方案的時間與 2 GiB 結果在同一台 Linux VM 量測，C-FT 另在 Mac 的 Docker 2 GiB 容器通過；**尚未在實體 8 GB 筆電上驗證**。B／C 的原始模型檔已不在本機，其分數來自同配方重訓版本。
 
-第二部分目前以字面條件查詢為主，仍可能漏抄姓名或條件，尚不具備完整的錯字、代稱、跨工單指涉與一般自由摘要能力。巡檢只讓模型評估候選子集，不能宣稱已找到全部工單中真正最急的十張。Windows 原生環境已有模型準備流程，macOS／WSL 的 Agent 安裝與預設命令仍需進一步驗證。
+第二部分目前以字面條件查詢為主，仍可能漏抄姓名或條件，尚不具備完整的錯字、代稱、跨工單指涉與一般自由摘要能力。巡檢只讓模型評估候選子集，不能宣稱已找到全部工單中真正最急的十張。Agent 已在 Windows 原生環境與 macOS（Apple Silicon，`install.py --with-agent` 後問答 9.1 秒、巡檢 38.2 秒）實跑；Linux 需要 glibc 2.38 以上才能執行官方 llama.cpp，WSL 未驗證。
+
+### 這份作業最想吐槽的地方
 
 從工程角度，這份題目最值得討論的是：**單一分類標籤與現場處置價值並不完全一致。** 一張工單可能同時描述供電、溫度與畫面異常，但輸出只能選一類；設備判斷也會連帶影響 urgency 與 duplicate。因此仍依官方規格評分，同時分開看各欄錯誤、證據與處置建議，避免只追求總分。另一個評測風險是反覆使用同一個小型驗證集；這也是目前將 dev 限定為固定版本驗證、保留歷史來源限制的原因。
 
-下一步會先固定交付方案、執行環境與可重現入口，整理正式輸出及量測文件；算法改善則優先在 history 上驗證姓名／設備候選確認與語意查詢，再擴充較具變化的問答題型。巡檢需增加完整資料範圍的候選漏失檢查與人工排序審查。版本與設定固定後，才進行符合資料規範的 dev 彙總驗證。
+### 下一步
+
+交付方案、執行環境（`install.py`）、可重現入口（`run_demo.py`、`scripts/collect_evidence.py`、`scripts/docker_2gb_check.sh`）與量測文件已固定。接下來：在實體 8 GB 筆電重做量測；`suggestion` 依錯誤碼或設備型號帶入更具體的處置；算法改善優先在 history 上驗證姓名／設備候選確認與語意查詢，再擴充較具變化的問答題型。巡檢需增加完整資料範圍的候選漏失檢查與人工排序審查。版本與設定固定後，才進行符合資料規範的 dev 彙總驗證。
 
 ## 6. 放棄或暫不採用的做法，以及原因
 

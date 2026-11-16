@@ -58,7 +58,9 @@ python3 run_demo.py --evals         # 另外跑 Agent 評測（每題冷啟動�
 |---|---|
 | 第一部分預測（預設：BGE 聯合微調） | `python3 predict.py data/tickets.jsonl tickets_predictions.jsonl` |
 | dev 評分 | `python3 predict.py data/dev.jsonl dev_pred.jsonl && python3 baseline/evaluate.py dev_pred.jsonl data/dev.jsonl` |
-| 2 GB 模式（方案 A） | `python3 predict.py data/tickets.jsonl tickets_predictions_2gb.jsonl --mem-limit 2g` |
+| 2 GB 版本（同一個模型，加上 2 GiB 上限） | `python3 predict.py data/tickets.jsonl tickets_predictions_2gb.jsonl --mem-limit 2g` |
+| Docker 2 GiB 驗證（需 Docker Desktop） | `bash scripts/docker_2gb_check.sh` |
+| 時間與 2 GiB 量測證據 | `python3 scripts/collect_evidence.py --runs 3 --output evidence/<名稱>` |
 | 指定其他方法 | `--method rules`（另有 `tfidf-*`、`bge-lr`、`bge-svc`，需要[完整模型包](../advanced/cpu-models.md)） |
 | 問答 Agent | `python3 ask.py "B1 動力室有哪些設備？" --trace` |
 | 巡檢 | `python3 patrol.py` |

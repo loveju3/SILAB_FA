@@ -1,5 +1,7 @@
 # Part 1 量測證據
 
+> **後續變更（2026-11-16 稍晚）：** 這組量測時，2 GB 交付檔 `tickets_predictions_2gb.jsonl` 由方案 A（rules）產生，所以表中標「是」的是 A 那一列。之後依 Docker 2 GiB 實測，2 GB 版本改用 C-FT，交付檔換成 C-FT 的輸出（與 `tickets_predictions.jsonl` 相同），見 [budget.md](../../budget.md)。
+
 由 `scripts/collect_evidence.py` 產生，2026-11-16T08:27:53+00:00。每列為新 Python 程序、無預熱、不清 OS 快取；總時間由外部 `perf_counter()` 量整個程序（含 Python 啟動、模型載入、推論、寫檔）。逐筆時間的定義見各 `runs/*.json` 的 `latency_definition`。
 
 - 環境：Linux-6.8.0-138-generic-aarch64-with-glibc2.35，4 CPU，RAM 3.8 GiB，Python 3.13.16
