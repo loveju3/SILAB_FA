@@ -1,0 +1,78 @@
+{
+  "environment": {
+    "measured_at_utc": "2026-11-16T14:44:17+00:00",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "machine": "AMD64",
+    "cpu_count": 16,
+    "memory_total_bytes": null,
+    "python": "3.13.5",
+    "git_head": "906fc860e097884762406e72e4d838479e430233",
+    "git_dirty_files": [
+      "ickets_predictions.jsonl",
+      "tickets_predictions_2gb.jsonl"
+    ],
+    "tickets_sha256": "1cc95e29378e5143e1d84a3a18837a3012c9dce60365503e06d6c0820e4b49fc",
+    "finetuned_heads_sha256": "71266a9247df08bad3f27914d1965e5d8b8f5c7a821bf19bfb387e5283268fcc",
+    "env_threads": {
+      "OMP_NUM_THREADS": "2",
+      "OPENBLAS_NUM_THREADS": "2"
+    }
+  },
+  "probe_2gib": null,
+  "groups": {
+    "bge-finetuned": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        32.639,
+        35.637
+      ],
+      "p50_ms": [
+        43.29,
+        47.368
+      ],
+      "p95_ms": [
+        117.021,
+        127.806
+      ],
+      "max_ms": [
+        142.246,
+        171.061
+      ],
+      "peak_rss_mib": [
+        457.5,
+        457.8
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": "是"
+    },
+    "rules": {
+      "runs": 3,
+      "passed": 3,
+      "external_wall_seconds": [
+        3.311,
+        3.475
+      ],
+      "p50_ms": [
+        1.501,
+        1.536
+      ],
+      "p95_ms": [
+        1.97,
+        2.213
+      ],
+      "max_ms": [
+        11.022,
+        13.159
+      ],
+      "peak_rss_mib": [
+        30.1,
+        30.7
+      ],
+      "identical_outputs": true,
+      "within_480s": true,
+      "matches_deliverable": null
+    }
+  }
+}
