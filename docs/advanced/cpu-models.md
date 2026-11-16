@@ -1,5 +1,7 @@
 # 進階開發：CPU 模型訓練與 Docker
 
+> **進階／歷史文件。** 一般安裝請用 [docs/setup](../setup/README.md) 的 `python3 install.py`，不需要照本頁操作。本頁保留先前的手動流程與實測紀錄：文中的 `.venv-windows`、`.venv-macos` 現已統一為 `.venv`；`SILAB_FA_test_models_20261115.zip` 完整模型包只有要跑 `--method tfidf-lr／tfidf-svc／bge-lr／bge-svc` 時才需要，預設的微調模型由 `install.py` 自動下載。
+
 一般測試者先依 [Windows](windows.md) 或 [Mac](macos.md) 完成一套環境；下列重新訓練與 2 GB Docker 為開發者進階工作。
 
 **本頁 Docker 指令的前置條件：**若電腦尚未安裝 Docker，先安裝並啟動 [Docker Desktop](https://www.docker.com/products/docker-desktop/)，執行 `docker version` 確認有 Client 與 Server 後，才能執行下方任何 `docker build`／`docker run`。Windows 使用 Linux containers；從 WSL 執行時另啟用該發行版的 WSL integration。
@@ -60,7 +62,7 @@ macOS 使用專案的固定 embedding 依賴，不使用上面的 Linux CPU whee
 docker build -f docs/testing/Dockerfile.finetuned -t silab-fa:finetuned-runtime-20261115 .
 ```
 
-此映像不包含微調權重；執行時須將 `transfer/finetuned/` 唯讀掛到 `/model`，並指定 `--method bge-finetuned --model-path /model`。完整 Windows／Unix 掛載與 2 GiB 指令見 [微調模型移轉說明](../testing/finetuned_transfer_readme.md)。`run_budget.py`、`benchmark.py` 目前不接受 `bge-finetuned`，微調版使用該說明的直接容器命令及外部計時，不要套用下方五種方法 runner。
+此映像不包含微調權重；執行時須將 `transfer/finetuned/` 唯讀掛到 `/model`，並指定 `--method bge-finetuned --model-path /model`。完整 Windows／Unix 掛載與 2 GiB 指令見 [微調模型移轉說明](../testing/finetuned_transfer_readme.md)。`benchmark.py` 已支援 `--method bge-finetuned`（見 [bench.md](../../bench.md)）；`run_budget.py` 尚不支援，微調版的 2 GiB 容器請用該說明的直接容器命令。
 
 完成對應依賴後，可執行既有開發測試入口；它預設關閉 dev 驗證：
 

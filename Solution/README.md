@@ -48,7 +48,7 @@ Solution/
 
 技術選型表位於專案根目錄：[技術選型對照表](../技術選型對照表.md)。
 
-根目錄 `predict.py` 僅轉接到 Solution，維持題目兩參數入口。資料仍使用根目錄 `data/`，不複製另一份訓練/驗證資料。
+根目錄 `predict.py` 僅轉接到 Solution，維持題目兩參數入口。**未指定 `--method` 時，已安裝 `transfer/finetuned/` 就使用 BGE 聯合微調（`bge-finetuned`），否則退回方案 A（`rules`）並在 stderr 警告；`--mem-limit 2g` 固定使用方案 A。**資料仍使用根目錄 `data/`，不複製另一份訓練/驗證資料。
 
 資料隱私：`data/`、所有 JSONL、預測、錯題報告及含工單 ID 的實驗摘要只留在本機，已加入 Git 忽略規則。其他環境須自行提供資料；`.gitignore` 不會移除既有 Git 歷史中的檔案，因此清理歷史前不可直接推送包含資料的舊提交。
 
@@ -57,9 +57,9 @@ Solution/
 從專案根目錄執行：
 
 ```bash
-python3 predict.py data/dev.jsonl Solution/predictions/dev_A.jsonl --metrics Solution/reports/dev_A_metrics.json
+python3 predict.py data/dev.jsonl Solution/predictions/dev_A.jsonl --method rules --metrics Solution/reports/dev_A_metrics.json
 python3 helper_tool/evaluate.py Solution/predictions/dev_A.jsonl --output-dir Solution/reports/dev_A
-python3 predict.py data/tickets.jsonl Solution/predictions/tickets_predictions.jsonl
+python3 predict.py data/tickets.jsonl Solution/predictions/tickets_A.jsonl --method rules
 python3 -m unittest discover -s Solution/tests -p 'test_*.py' -v
 python3 Solution/scripts/benchmark.py --runs 3
 ```

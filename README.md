@@ -1,27 +1,42 @@
 # SILAB FA：工單分流程式
 
-目前包含方案 A 規則版、方案 B 字元 TF-IDF、方案 C 固定 BGE encoder（B/C 均提供 LR 與 LinearSVC）、評分／查詢 UI、測試、流程圖及彙總效能說明。
+第一部分預設使用 **BGE encoder＋分類頭聯合微調**（dev 總分 0.944，見 [bench.md](bench.md)），2 GB 模式使用方案 A 規則版（0.909，見 [budget.md](budget.md)）；另保留方案 B 字元 TF-IDF、方案 C 固定 BGE encoder（B/C 均提供 LR 與 LinearSVC）、評分／查詢 UI、測試、流程圖及彙總效能說明。
 
 第二部分新增獨立的 [離線智慧問答 Agent 初版](agent/README.md)：`ask.py` 模型選擇工具與停止時機、`patrol.py` 候選巡檢及 `evals/` 開發評測。使用本機 Qwen3-1.7B Q4 與 CPU llama.cpp；支援範圍、限制及實測須與第一部分分類成績分開看待。
 
 工作台另提供訓練 modal：上傳 history、指定模型保存路徑、執行 BGE encoder＋分類頭聯合微調及凍結對照，並保存逐輪紀錄與時間戳模型。操作與限制見 [UI 訓練文件](Solution/docs/BGE聯合微調與UI訓練.md)。
 
+## 快速開始
+
+支援 macOS Apple Silicon、Windows x64、Linux（Python 3.12／3.13；Windows 把 `python3` 換成 `python`）。詳細說明與常見問題見 [docs/setup](docs/setup/README.md)。
+
+```bash
+git clone https://github.com/loveju3/SILAB_FA.git && cd SILAB_FA
+# 把題目附的 devices.json、error_codes.json、tickets.jsonl、history.jsonl、dev.jsonl 放進 data/
+python3 install.py --with-agent     # 建 .venv、裝 CPU 套件、下載並校驗模型、推論自測；看到 PASS 即完成
+python3 run_demo.py                 # dev 評分、兩份 tickets 預測、ask.py --trace 與 patrol.py 示範
+```
+
+- 模型權重不放 Git：`install.py` 會從本 repo 的 [GitHub Release](https://github.com/loveju3/SILAB_FA/releases/tag/models-20261115) 下載微調模型 ZIP（76 MB），校驗 SHA-256 後放到 `transfer/finetuned/`；Agent 的 Qwen3-1.7B 與 llama.cpp 由 `--with-agent` 下載。只做第一部分可省略 `--with-agent`。
+- **不需要啟用虛擬環境**：`python3 predict.py …`、`python3 ask.py …` 等入口會自動改用 `.venv` 執行，題目規格的指令可以直接照打。
+- 推論全程離線、只用 CPU。
+
+### 交付項目對照
+
+| HW_RULES 交付項目 | 在哪裡 |
+|---|---|
+| `predict.py`（`python3 predict.py <輸入> <輸出>`） | [predict.py](predict.py)，預設使用 BGE 聯合微調；模型不存在時退回方案 A 並在 stderr 警告 |
+| `tickets_predictions.jsonl` | [tickets_predictions.jsonl](tickets_predictions.jsonl)（`run_demo.py` 會重新產生） |
+| 選型對照表 | [技術選型對照表](技術選型對照表.md)，以及本文[第 6 段](#6-放棄或暫不採用的做法以及原因) |
+| `bench.md`（dev 四欄、總時間、P50／P95／最大、方案對照） | [bench.md](bench.md) |
+| 2 GB 版本 | `python3 predict.py <輸入> <輸出> --mem-limit 2g`（方案 A） |
+| `tickets_predictions_2gb.jsonl` | [tickets_predictions_2gb.jsonl](tickets_predictions_2gb.jsonl) |
+| `budget.md` | [budget.md](budget.md)（完整證據：[Solution/budget.md](Solution/budget.md)） |
+| `ask.py`（支援 `--trace`）、`patrol.py` | [ask.py](ask.py)、[patrol.py](patrol.py)，設計見[第 4 段](#4-agent-與評測設計)與 [agent/README.md](agent/README.md) |
+| `evals/`（≥10 題、一鍵跑分、報告） | [evals/run.py](evals/run.py)、[驗證報告](agent/VALIDATION.md) |
+| `ai-log/` | [ai-log/](ai-log/2026-11-14-agent.md) |
+
 **重要開發規則：不得觀察 `dev.jsonl` 的資料來設計算法；dev 僅供固定版本驗證。** 開發與調參使用 history，完整規範見 [AGENTS.md](AGENTS.md)。既有方案 A 曾參考 dev，其成績只作歷史開發驗證紀錄。
-
-## 建立環境
-
-另一台電腦只需選擇自己的作業系統，依序完成一份流程，就能備妥第一階段批次分流、第二階段問答／巡檢與測試 UI 所需的環境：
-
-- **Windows x64**：[Windows 完整環境建置](docs/setup/windows.md)，使用同一個 Windows 原生 Python 環境，不需要 WSL。
-- **macOS Apple Silicon**：[Mac 完整環境建置](docs/setup/macos.md)。已補齊模型與原生 runtime 安裝流程，但本次沒有 Mac 實機，尚未完成端到端驗證。
-
-兩份流程都包含：本機資料、測試模型包解壓位置、CPU 套件、Qwen／llama.cpp 下載、環境檢查與兩階段測試指令。**2 GB Docker、重新訓練與打包是進階開發工作，不是另一台電腦開始測試的必要步驟。**
-
-若選用 Docker 映像流程，**尚未安裝 Docker 的電腦，請先安裝並啟動 [Docker Desktop](https://www.docker.com/products/docker-desktop/)**，再執行 `docker build`、`docker load` 或 `docker run`。確認 `docker version` 同時顯示 Client 與 Server；只有 image 檔不代表電腦已安裝 Docker。
-
-測試模型包為 `SILAB_FA_test_models_20261115.zip`，向維護者取得後解壓到 repo 根目錄；其中微調模型會位於 `transfer/finetuned/`。原始工單另行在本機準備，Qwen 與原生 runtime 則由 `agent/setup.py` 下載。模型包不隨 Git 提供，可向維護者索取或查看 [共用資料夾](https://drive.google.com/drive/folders/1QeCQjNet73n8FYnrJ4WLmnpGKPnNc7zt)；檔案尚未放入時不會自動下載。
-
-[本次實測與限制](docs/setup/validation-2026-11-15.md) 區分了 Windows 真實執行、Mac 安裝器檢查與尚未驗證的項目。環境準備完成不代表準確率或效能已通過；驗收仍需實際執行。
 
 ## 1. 我怎麼發現問題的
 
@@ -75,7 +90,7 @@
 
 ## 5. 已知限制與下一步
 
-目前第一部分的兩參數入口預設使用方案 A，B／C 可透過參數選擇，但最終交付方案與正式命名的兩份預測輸出尚待整理。Windows 原生規則版已補齊記憶體量測相容性並通過開發測試；各模型的環境與歷史效能仍須分開看待。既有 B／C dev 四欄成績與 2 GB 掉分資料尚未完成，不能以 history 回測或 tickets 輸出一致性取代。8 GB 實機驗證未完成的部分已揭露，2 GB 演練則另保存限制與執行證據。
+第一部分的兩參數入口預設使用 BGE 聯合微調，`--mem-limit 2g` 使用方案 A，兩份正式預測輸出已放在 repo 根目錄；B／C 其餘方法可透過 `--method` 選擇。預設方法是以 dev 對兩個已固定版本各評分一次後選定，這個選擇本身用到了 dev，已在 [bench.md](bench.md) 揭露。微調版目前只在 Linux VM 完成三次量測，2 GiB 容器只做過單筆 smoke。Windows 原生規則版已補齊記憶體量測相容性並通過開發測試；各模型的環境與歷史效能仍須分開看待。既有 B／C dev 四欄成績與 2 GB 掉分資料尚未完成，不能以 history 回測或 tickets 輸出一致性取代。8 GB 實機驗證未完成的部分已揭露，2 GB 演練則另保存限制與執行證據。
 
 第二部分目前以字面條件查詢為主，仍可能漏抄姓名或條件，尚不具備完整的錯字、代稱、跨工單指涉與一般自由摘要能力。巡檢只讓模型評估候選子集，不能宣稱已找到全部工單中真正最急的十張。Windows 原生環境已有模型準備流程，macOS／WSL 的 Agent 安裝與預設命令仍需進一步驗證。
 
@@ -89,7 +104,7 @@
 |---|---|---|
 | 第一部分每筆都交給生成式 LLM | 先以規則與分類模型處理批次分流，把 LLM 用在需要自然語言決策的問答；批次任務的資源預算較緊。 | 屬設計取捨，未完成逐筆生成式 LLM 的完整效能對照，不能宣稱已實測較差。 |
 | 只靠持續增加症狀關鍵詞改善分類 | A 仍保留作預設與對照，但後續加入 B／C，避免把每個新措辭都變成一條規則。 | 已有規則、TF-IDF 與 BGE 的比較；各版本的資料來源限制仍適用。 |
-| 以「有微調就一定較好」作為選型依據 | 已記錄的初輪聯合微調結果未優於固定 encoder＋SVC，因此沒有依那輪結果替換預設模型。 | 有 history 內部比較；驗證段同時參與選 epoch，不能當成獨立測試。 |
+| 以「有微調就一定較好」作為選型依據 | 初輪聯合微調在 history 內部未優於固定 encoder＋SVC，當時沒有據此替換預設模型。後來固定版本在 dev 上與方案 A 比較一次（0.944 對 0.909）後才改為預設；固定 BGE＋SVC 沒有 dev 分數，未納入比較。 | history 內部比較的驗證段同時參與選 epoch；dev 比較只做一次且未據此調參，但仍是用 dev 做的選擇。 |
 | 只看五類分類 F1 挑模型 | 選型另考慮 unknown，使用預先定義的六類指標；不因某個版本單一分數較高就事後改規則。 | 已有 history 分割與候選比較，但資訊不足樣本很少，結論仍不穩定。 |
 | 第一版問答就加入額外向量檢索模型 | 先完成可驗證的表格、文字查詢與聚合工具；BGE 分類效果不能直接證明它適合工單檢索。 | 僅評估，尚未完成檢索對照實驗。 |
 | 讓 LLM 自由撰寫巡檢引用 | 改由程式擷取原文，保留模型在選單、排序與優先程度上的決策。 | 真實小模型曾改寫引句，修正一次仍失敗；改為程式擷取後通過合成契約 smoke。 |
@@ -102,12 +117,13 @@
 - [演算法流程圖](Solution/docs/演算法流程.md)
 - [TF-IDF 實作、history 比較與操作](Solution/docs/TF-IDF實作與比較.md)
 - [BGE 方案 C、批次流程與實驗](Solution/docs/BGE方案C方法與實驗.md)
+- [建立環境與執行](docs/setup/README.md)、[進階／歷史文件](docs/advanced/README.md)
 - [輔助工具](helper_tool/README.md)
 - [CPU 量測](bench.md)
-- [2 GB 驗證](Solution/budget.md)
+- [2 GB 驗證](budget.md)（完整證據：[Solution/budget.md](Solution/budget.md)）
 
-正式題目 [HW_RULES.md](HW_RULES.md) 與 [欄位規格](schema.md) 納入 repo，供核對交付需求；其中的規格示例不代表允許以 dev 開發算法，資料使用仍以 [AGENTS.md](AGENTS.md) 為準。原始工單 JSONL、預測結果、逐筆錯誤報告及含真實工單摘錄的分析產物維持只留本機。測試程式中的合成範例用於驗證契約，真實資料評測仍需自行在本機提供資料。
+正式題目 [HW_RULES.md](HW_RULES.md) 與 [欄位規格](schema.md) 納入 repo，供核對交付需求；其中的規格示例不代表允許以 dev 開發算法，資料使用仍以 [AGENTS.md](AGENTS.md) 為準。原始工單 JSONL、逐筆錯誤報告及含真實工單摘錄的分析產物維持只留本機；預測結果只有題目要求的 `tickets_predictions.jsonl` 與 `tickets_predictions_2gb.jsonl` 納入 Git。測試程式中的合成範例用於驗證契約，真實資料評測仍需自行在本機提供資料。
 
-請自行在本機準備 data/devices.json、data/error_codes.json，以及需要的工單 JSONL。data/、JSONL 與報告已設為忽略；不應將任何工單資料加入 Git。
+題目資料請放在本機 data/（見[快速開始](#快速開始)）。data/、其他 JSONL 與報告已設為忽略；不應將任何工單資料加入 Git。
 
-本次合併保留 main 既有歷史；舊提交中的資料仍可能存在。之後產生的預測 JSONL 僅留本機，不加入 Git，也不推送至 GitHub。
+本次合併保留 main 既有歷史；舊提交中的資料仍可能存在。

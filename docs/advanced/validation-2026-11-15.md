@@ -1,5 +1,7 @@
 # 2026-11-15：依實測整理 Windows／Mac 建置入口
 
+> **進階／歷史文件。** 一般安裝請用 [docs/setup](../setup/README.md) 的 `python3 install.py`，不需要照本頁操作。本頁保留先前的手動流程與實測紀錄：文中的 `.venv-windows`、`.venv-macos` 現已統一為 `.venv`；`SILAB_FA_test_models_20261115.zip` 完整模型包只有要跑 `--method tfidf-lr／tfidf-svc／bge-lr／bge-svc` 時才需要，預設的微調模型由 `install.py` 自動下載。
+
 結論：Windows x64 可以將兩階段放在同一個原生 Python 環境；一般測試不需要 WSL 或 Docker。Mac 可準備對應的原生流程，但本次只有 Windows 實機，不能宣稱 Mac 端到端已通過。2 GB、重新訓練與 Docker 打包移至進階文件。
 
 ## Windows 實際執行

@@ -1,8 +1,8 @@
 # Windows／WSL 執行與 2 GB 驗證紀錄
 
-新的環境建立步驟統一依循 [docs/setup/](../../docs/setup/README.md)，Windows 批次分流請讀 [WSL 指南](../../docs/setup/windows-wsl.md)。以下保留先前安裝與驗證時的命令、版本及結果，供追溯，不取代統一環境指南。
+新的環境建立步驟統一依循 [docs/setup/](../../docs/setup/README.md)，Windows 批次分流請讀 [WSL 指南](../../docs/advanced/windows-wsl.md)。以下保留先前安裝與驗證時的命令、版本及結果，供追溯，不取代統一環境指南。
 
-第一部分批次入口使用 Unix 的 `resource`，Windows 請使用 WSL；第二部分 Agent 已有 [Windows 原生安裝方式](../../docs/setup/windows-native-agent.md)。專案內既有 `.venv` 是 Linux 虛擬環境，不能用 Windows Python 啟動。
+第一部分批次入口使用 Unix 的 `resource`，Windows 請使用 WSL；第二部分 Agent 已有 [Windows 原生安裝方式](../../docs/advanced/windows-native-agent.md)。專案內既有 `.venv` 是 Linux 虛擬環境，不能用 Windows Python 啟動。
 
 ## 環境準備
 

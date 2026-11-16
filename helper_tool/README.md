@@ -1,6 +1,6 @@
 # 開發輔助工具
 
-第一次使用請先依循根目錄的 [環境建立文件 `docs/setup/`](../docs/setup/README.md)，選擇 macOS、Windows／WSL 或 Windows 原生 Agent 的準備方式。本頁以 UI 功能與操作為主；環境建立以該目錄為統一入口。
+第一次使用請先執行根目錄的 `python3 install.py`（見 [docs/setup](../docs/setup/README.md)），之後用 `python3 helper_tool/ui_server.py` 啟動，會自動使用 `.venv`。本頁以 UI 功能與操作為主。
 
 **資料使用規則：** dev 僅供固定版本驗證，不得觀察 dev 原文、標籤或逐筆錯題來設計／調整算法。工具保留 dev 評分與報告功能，開發時的錯誤分析請使用 history。完整規範見 [AGENTS.md](../AGENTS.md)。
 
@@ -45,11 +45,11 @@
 
 含標準答案的資料每筆須有 `device_id/category/urgency/duplicate_of` 四欄，系統自動評分。完全沒有標籤時，檔名最後為 `未評分`，只呈現預測、不計分也不標示對錯；混合缺漏的標籤會報錯，不把部分資料當成完整評測。算法本身仍只接收四個輸入欄位。
 
-方案 A／Baseline 的 2 GB 映像，以及 TF-IDF 兩種方法的套件、history 訓練模型與 Docker 映像，統一依 [CPU 模型與 Docker 環境](../docs/setup/cpu-models.md) 準備。
+方案 A／Baseline 的 2 GB 映像，以及 TF-IDF 兩種方法的套件、history 訓練模型與 Docker 映像，統一依 [CPU 模型與 Docker 環境](../docs/advanced/cpu-models.md) 準備。
 
 UI 執行本機 TF-IDF 時優先選專案 .venv，A／Baseline 使用原本的 Python。方法名稱會進入檔名（tfidf-lr／tfidf-svc）；不會自動切換分類器或偷偷訓練模型。模型、.venv、預測與報告不加入 Git。詳見 [TF-IDF 設計與比較](../Solution/docs/TF-IDF實作與比較.md)。
 
-方案 C 的 BGE 套件、公開 encoder、分類頭與 Docker 映像也依同一份 [CPU 模型與 Docker 環境](../docs/setup/cpu-models.md) 準備；下載只發生於事前安裝，推論不連網。
+方案 C 的 BGE 套件、公開 encoder、分類頭與 Docker 映像也依同一份 [CPU 模型與 Docker 環境](../docs/advanced/cpu-models.md) 準備；下載只發生於事前安裝，推論不連網。
 
 UI 提供 bge-lr／bge-svc，2 GB 會選擇 scheme-c，依舊驗證實際記憶體與 swap 限制。模型以完整 history 重訓；UI 選 history 是訓練資料回測，不等於 history 後段 90 筆的內部驗證。C 的每筆延遲包含完整共享批次服務時間，不與 B 的單筆獨立推論延遲直接比較。詳見 [BGE 方案 C](../Solution/docs/BGE方案C方法與實驗.md)。
 

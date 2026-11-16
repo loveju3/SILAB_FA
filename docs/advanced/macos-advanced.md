@@ -1,26 +1,14 @@
-# Mac：一套環境跑第一、第二階段
+# Mac：完整驗收與 Agent
 
-本流程針對 **Apple Silicon（M1／M2／M3 等 arm64）**，使用 Python 3.12／3.13。第一與第二階段共用同一個原生 Python 環境，不要求 Docker 或 2 GB 演練。
+> **進階／歷史文件。** 一般安裝請用 [docs/setup](../setup/README.md) 的 `python3 install.py`，不需要照本頁操作。本頁保留先前的手動流程與實測紀錄：文中的 `.venv-windows`、`.venv-macos` 現已統一為 `.venv`；`SILAB_FA_test_models_20261115.zip` 完整模型包只有要跑 `--method tfidf-lr／tfidf-svc／bge-lr／bge-svc` 時才需要，預設的微調模型由 `install.py` 自動下載。
 
-**本次沒有 Mac 實機，以下尚未完成端到端驗證。** 已查核固定 runtime 發行檔、Apple Silicon 檔案雜湊／目錄結構，並測試安裝器邏輯。
+一般使用者請先完成 [Mac 安裝](macos.md)。以下是完整模型驗收、Agent 與開發測試，並非微調模型安裝的必要步驟。
 
-## 1. 確認工具與架構
+## 2. 按需放入資料與模型
 
-先安裝 Git、arm64 Python 3.12 或 3.13，取得最新 repo。在終端執行：
+完整兩階段驗收需在本機準備 data/devices.json、data/error_codes.json、data/tickets.jsonl、data/history.jsonl。資料不隨 Git 提供，也不傳到雲端。這些檔案不影響前一步 Python 環境安裝。
 
-~~~bash
-cd /path/to/SILAB_FA
-uname -m
-python3 --version
-python3 -c "import platform; print(platform.machine())"
-git --version
-~~~
-
-uname 與 Python 架構都應為 arm64，請使用原生 arm64 Python。
-
-## 2. 放好資料與完整測試模型包
-
-本機準備 data/devices.json、data/error_codes.json、data/tickets.jsonl、data/history.jsonl。資料不隨 Git 提供，也不傳到雲端。
+若先只跑微調推論，可稍後放入完整的 `transfer/finetuned/`（下列 model.json、heads.safetensors 與完整 encoder/），不需準備其他四組分類模型或重新訓練。推論仍需設備／錯誤碼表與輸入工單；完整環境檢查則會要求所有驗收資產。
 
 向維護者取得 SILAB_FA_test_models_20261115.zip，解壓到 repo 根目錄。維護者可自行放至 [共用資料夾](https://drive.google.com/drive/folders/1QeCQjNet73n8FYnrJ4WLmnpGKPnNc7zt)，未找到時索取，不會由推論自動下載。確認：
 
@@ -40,17 +28,7 @@ TEST_MODELS_MANIFEST.json
 
 這些是已訓練完成的推論資產，不需要在這台重新訓練。只有 finetuned 的舊 ZIP 不足以跑所有 B/C 方法。
 
-## 3. 建立唯一 Mac Python 環境
-
-~~~bash
-python3 -m venv .venv-macos
-.venv-macos/bin/python -m pip install -r Solution/requirements-embedding.txt
-.venv-macos/bin/python -m pip check
-~~~
-
-不要使用 Windows／WSL 的虛擬環境，也不要在 Mac 指定 Linux／Windows CPU wheel index。這一份 requirements 已包含 TF-IDF、BGE、微調推論及 Agent 共用的 Python 環境所需套件。
-
-## 4. 下載 Agent 模型與原生 runtime
+## 3. 使用 Agent 時下載模型與原生 runtime
 
 ~~~bash
 .venv-macos/bin/python agent/setup.py
@@ -69,7 +47,7 @@ agent_assets/
 
 不需手動改寫 --server，ask.py、patrol.py 與 UI 使用平台原生路徑。模型實際啟動使用 -ngl 0，仍按 CPU 推論測試。
 
-## 5. 確認環境已齊全
+## 4. 完整驗收前確認所有資產齊全
 
 ~~~bash
 .venv-macos/bin/python scripts/check_environment.py
@@ -77,7 +55,7 @@ agent_assets/
 
 預期 exit code 0、JSON ready=true；缺套件、模型、runtime 或資料時 problems 會列出原因。檢查不讀任何工單內容／dev，也不代表推論準確率或效能達標。若 Mac runtime 不能啟動，保留錯誤摘要回報；不要把只完成下載當成實機驗證。
 
-## 6. 使用同一環境跑兩階段測試
+## 5. 使用同一環境跑兩階段測試
 
 ~~~bash
 .venv-macos/bin/python Solution/scripts/test_development.py
@@ -93,7 +71,7 @@ agent_assets/
 
 固定模型另用 --method tfidf-lr、tfidf-svc、bge-lr、bge-svc，使用各自輸出檔名。正式推論離線；完整資料、預測、逐筆 trace／報告只留本機。開發測試禁止 dev；dev 僅在候選版本固定後由驗證程序使用。題庫有既有能力限制，安裝成功不代表每題都會通過。完整驗收見 [JSON 清單](../testing/cross_device_test_checklist.json)。
 
-## 7. 開啟同一個測試 UI
+## 6. 開啟同一個測試 UI
 
 ~~~bash
 .venv-macos/bin/python helper_tool/ui_server.py --no-browser --port 8765

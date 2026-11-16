@@ -1,5 +1,7 @@
 # 微調 BGE：另一台電腦自行建置 image 與掛載模型
 
+一般使用者請依 [docs/setup](../setup/README.md) 執行 `python3 install.py`，一個指令即可建立環境並匯入本模型 ZIP。以下僅供需要 Docker 移轉的使用者。
+
 ## 這個 ZIP 包含什麼
 
 - 檔名：SILAB_FA_bge_finetuned_20261115-082422.zip

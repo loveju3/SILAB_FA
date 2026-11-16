@@ -1,5 +1,7 @@
 # Windows：一套環境跑第一、第二階段
 
+> **進階／歷史文件。** 一般安裝請用 [docs/setup](../setup/README.md) 的 `python3 install.py`，不需要照本頁操作。本頁保留先前的手動流程與實測紀錄：文中的 `.venv-windows`、`.venv-macos` 現已統一為 `.venv`；`SILAB_FA_test_models_20261115.zip` 完整模型包只有要跑 `--method tfidf-lr／tfidf-svc／bge-lr／bge-svc` 時才需要，預設的微調模型由 `install.py` 自動下載。
+
 適用 Windows x64、Python 3.12／3.13。整份流程都在 Windows PowerShell 執行，不需要 WSL 或 Docker；2 GB 演練留給開發者。Windows ARM 原生未驗證。
 
 ## 1. 取得工具與 repo

@@ -139,7 +139,7 @@ docker run --rm --network none --memory 2g --memory-swap 2g --cpus 2 --mount "ty
 
 ### 正式交付新版的流程
 
-1. 若只改 portable Dockerfile 已 COPY 的程式／設定／分類頭，可在保留 silab-fa:scheme-c 基底映像的建置機重新 build。若 encoder／套件有變，先依 docs/setup/cpu-models.md 重建 scheme-c；其他新增路徑也要更新 Dockerfile 的 COPY 清單。
+1. 若只改 portable Dockerfile 已 COPY 的程式／設定／分類頭，可在保留 silab-fa:scheme-c 基底映像的建置機重新 build。若 encoder／套件有變，先依 docs/advanced/cpu-models.md 重建 scheme-c；其他新增路徑也要更新 Dockerfile 的 COPY 清單。
 2. 使用新標籤，例如 silab-fa:portable-batch-20261115-v2，避免與舊版混淆。重跑合成 smoke、離線與所需資源限制測試。
 3. docker save 匯出新標籤；視需要壓縮，產生本次檔案的 SHA-256 與 manifest，不沿用舊校驗碼。正常交付單檔即可，不必分卷。
 4. 上傳到新的版本子資料夾，保留舊版；接收者重新下載、校驗並 docker load。
