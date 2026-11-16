@@ -33,7 +33,7 @@ except ImportError:
 from baseline.predict import main as baseline_predict
 # experiments uses package-relative imports, also when this server is a script.
 from helper_tool.experiments import run_experiment
-from helper_tool import agent_jobs
+from helper_tool import agent_jobs, batch_runs
 from helper_tool.comparison import list_experiments
 from Solution.triage.io import file_sha256
 
@@ -141,8 +141,28 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self):
+        # Batch status is in memory and must stay readable while a method runs
+        # (the running method holds operation_lock for its whole duration).
+        if urlsplit(self.path).path in ("/api/run-all", "/api/run-all/models"):
+            self.handle_batch_get()
+            return
         with self.server.operation_lock:
             self.handle_get()
+
+    def handle_batch_get(self):
+        if not self.local_request():
+            return
+        query = parse_qs(urlsplit(self.path).query)
+        job_id, method = query.get("id", [None])[0], query.get("method", [None])[0]
+        try:
+            if urlsplit(self.path).path == "/api/run-all/models":
+                self.respond(batch_runs.model_choices())
+            elif method:
+                self.respond(batch_runs.get_result(job_id, method))
+            else:
+                self.respond({"job": batch_runs.get_job(job_id)})
+        except (OSError, ValueError) as exc:
+            self.respond({"error": str(exc)}, 404)
 
     def handle_get(self):
         if not self.local_request():
@@ -209,7 +229,7 @@ class Handler(BaseHTTPRequestHandler):
     def handle_post(self):
         if not self.local_request():
             return
-        if self.path not in ("/api/evaluate", "/api/run", "/api/training", "/api/agent/jobs"):
+        if self.path not in ("/api/evaluate", "/api/run", "/api/run-all", "/api/training", "/api/agent/jobs"):
             self.respond({"error": "找不到操作"}, 404)
             return
         try:
@@ -225,6 +245,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond(training_action("start_job", payload), 202)
             elif self.path == "/api/agent/jobs":
                 self.respond(agent_jobs.start_job(payload), 202)
+            elif self.path == "/api/run-all":
+                self.respond(batch_runs.start_job(payload, RUNS, self.server.operation_lock), 202)
             else:
                 self.respond(run_experiment(payload, RUNS) if self.path == "/api/run" else evaluate_upload(payload))
         except (OSError, ValueError, UnicodeError) as exc:

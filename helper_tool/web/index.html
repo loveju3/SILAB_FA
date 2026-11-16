@@ -25,9 +25,25 @@
             <div class="form-control output-control"><label for="output-dir">預測檔輸出資料夾</label><input id="output-dir" value="Solution/predictions" placeholder="例如 Solution/predictions 或 /Users/你的帳號/測試結果" required><small>可填絕對路徑，或相對於專案根目錄的路徑；不存在時自動建立。</small></div>
             <div class="form-control output-control"><label for="model-path">模型路徑（選填）</label><input id="model-path" placeholder="預設使用既有模型；也可由訓練紀錄選取"><small>聯合微調須選取本次模型資料夾；LR／SVC 可指定時間戳資料夾內的 .joblib。</small></div>
           </div>
-          <div class="experiment-actions"><p class="naming-hint">檔名：<code>日期時間戳_資料集_方法_限制_得分.jsonl</code><br>使用台北時間，得分為 0～1；沒有標準答案時標記「未評分」。</p><button id="run-experiment" class="button primary" type="submit">執行預測與評分 <span>→</span></button></div>
+          <details id="batch-models" class="batch-models" open><summary>「一次跑全部方法」各方法使用的模型 <button id="batch-models-refresh" class="button secondary small" type="button">重新整理清單</button></summary>
+            <div class="batch-model-grid">
+              <div class="form-control"><label for="model-tfidf-lr">TF-IDF＋LR</label><select id="model-tfidf-lr" data-batch-model="tfidf-lr"></select></div>
+              <div class="form-control"><label for="model-tfidf-svc">TF-IDF＋LinearSVC</label><select id="model-tfidf-svc" data-batch-model="tfidf-svc"></select></div>
+              <div class="form-control"><label for="model-bge-lr">BGE＋LR</label><select id="model-bge-lr" data-batch-model="bge-lr"></select></div>
+              <div class="form-control"><label for="model-bge-svc">BGE＋LinearSVC</label><select id="model-bge-svc" data-batch-model="bge-svc"></select></div>
+              <div class="form-control"><label for="model-bge-finetuned">BGE 聯合微調</label><select id="model-bge-finetuned" data-batch-model="bge-finetuned"></select></div>
+            </div>
+            <p id="batch-models-note" class="detail-note">清單來自「模型訓練」頁成功的訓練紀錄。「★ 選型結果」是該次訓練自動選中的候選；驗證總分是 history 驗證段成績，不是獨立測試。Baseline 與方案 A 是規則，不需要模型。</p>
+          </details>
+          <div class="experiment-actions"><p class="naming-hint">檔名：<code>日期時間戳_資料集_方法_限制_得分.jsonl</code><br>使用台北時間，得分為 0～1；沒有標準答案時標記「未評分」。</p><div class="experiment-buttons"><button id="run-all" class="button secondary" type="button" title="忽略上方「方法」與「模型路徑」，依序執行所有方法">一次跑全部方法</button><button id="run-experiment" class="button primary" type="submit">執行預測與評分 <span>→</span></button></div></div>
           <p id="limit-hint" class="chart-note" hidden>2 GB 模式需要已啟動 Docker，方案 A／Baseline 需 silab-fa:scheme-a 映像；TF-IDF 需先訓練模型並建置 silab-fa:scheme-b 映像；BGE 需 silab-fa:scheme-c 映像。系統會確認記憶體與禁止 swap 的限制。</p>
         </form>
+      </section>
+      <section id="batch-panel" class="panel batch-panel" aria-label="全部方法分數比較" hidden>
+        <div class="section-title"><span class="step">↯</span><h2>方法分數比較</h2><span id="batch-tag" class="tag"></span></div>
+        <p id="batch-progress" class="detail-note" aria-live="polite"></p>
+        <div class="table-scroll"><table class="compare-table batch-table"><thead><tr><th>排名</th><th>方法</th><th>狀態</th><th>加權總分</th><th>分類 macro-F1</th><th>device 正確率</th><th>urgency macro-F1</th><th>duplicate F1</th><th>錯題數</th><th>預測耗時（秒）</th><th></th></tr></thead><tbody id="batch-rows"></tbody></table></div>
+        <p class="detail-note">同一份資料、同一執行環境依序執行，每個方法各自保存預測檔與報告（也會出現在下方「實驗比較」）。各欄最佳值以粗體標示；某個方法失敗不會中斷其他方法。按「查看詳情」載入該方法的指標、混淆矩陣與錯題。</p>
       </section>
       <section class="panel setup" aria-label="評分設定">
         <div class="section-title"><h2>已有預測檔？直接評分</h2><span class="tag">官方計分規則</span></div>
@@ -121,6 +137,27 @@
         <div class="form-control"><label for="train-dropout">分類頭 dropout</label><input id="train-dropout" type="number" min="0.1" max="0.5" step="0.05" value="0.2" required></div>
         <div class="form-control"><label for="train-smoothing">Label smoothing</label><input id="train-smoothing" type="number" min="0" max="0.2" step="0.05" value="0.1" required></div>
       </div><p class="detail-note">另固定 batch=8、512 tokens、seed=42、梯度裁切=1、10% warmup，驗證六類 F1 連續 2 epochs 未改善即停止，保留最佳 checkpoint。低學習率與正規化不能保證不過擬合；下方會保留訓練／驗證差距。比較用 checkpoint 不以完整 history 重訓。</p></fieldset>
+      <fieldset id="linear-settings" hidden disabled><legend>LR／SVC 訓練參數</legend>
+        <h4 class="settings-subtitle">分類頭（LR 與 SVC 共用）</h4>
+        <div class="training-grid">
+          <div class="form-control"><label for="lin-c">正則化強度 C</label><input id="lin-c" type="number" min="0.001" max="1000" step="any" value="1" required><small class="detail-note">越小越保守、越不容易過擬合；越大越貼合訓練資料。</small></div>
+          <div class="form-control"><label for="lin-class-weight">類別權重</label><select id="lin-class-weight"><option value="balanced">balanced · 依類別數量自動平衡</option><option value="none">不加權</option></select><small class="detail-note">類別不平均時建議 balanced。</small></div>
+          <div class="form-control"><label for="lin-info-c">資訊不足判斷 C</label><input id="lin-info-c" type="number" min="0.001" max="1000" step="any" value="1" required><small class="detail-note">判斷工單是否資訊不足（category=null）的另一個 LR。</small></div>
+          <div class="form-control"><label for="lin-lr-iter">LR 最大迭代次數</label><input id="lin-lr-iter" type="number" min="100" max="100000" step="1" value="2000" required></div>
+          <div class="form-control"><label for="lin-svc-iter">SVC 最大迭代次數</label><input id="lin-svc-iter" type="number" min="100" max="100000" step="1" value="5000" required><small class="detail-note">出現未收斂警告時再調高。</small></div>
+        </div>
+        <div id="tfidf-settings">
+          <h4 class="settings-subtitle">TF-IDF 特徵</h4>
+          <div class="training-grid">
+            <div class="form-control"><label for="lin-analyzer">切字方式</label><select id="lin-analyzer"><option value="char">char · 連續字元</option><option value="char_wb">char_wb · 只在詞內切字元</option></select></div>
+            <div class="form-control"><label>n-gram 長度（最短～最長）</label><div class="range-inputs"><input id="lin-ngram-min" type="number" min="1" max="6" step="1" value="2" required aria-label="n-gram 最短"><span>～</span><input id="lin-ngram-max" type="number" min="1" max="6" step="1" value="4" required aria-label="n-gram 最長"></div><small class="detail-note">例如 2～4：取 2、3、4 個連續字元當特徵。</small></div>
+            <div class="form-control"><label for="lin-min-df">最少出現工單數 min_df</label><input id="lin-min-df" type="number" min="1" max="50" step="1" value="1" required><small class="detail-note">只出現在少於這麼多張工單的片段會被丟掉。</small></div>
+            <div class="form-control"><label for="lin-max-features">特徵數上限</label><input id="lin-max-features" type="number" min="0" max="1000000" step="1" value="0" required><small class="detail-note">0＝不限制；否則至少 100。</small></div>
+          </div>
+          <label class="training-attestation"><input id="lin-sublinear" type="checkbox" checked>sublinear TF：同一片段重複出現時，以 log 降低權重</label>
+        </div>
+        <div class="settings-actions"><button id="linear-reset" class="button secondary small" type="button">恢復預設值</button><p class="detail-note">預設值即原本固定的配方。每次訓練仍比較「原文／遮罩設備名稱」× LR／SVC 四個候選，設定套用到四個候選；使用的參數會保存在本次訓練紀錄。</p></div>
+      </fieldset>
       <label class="training-attestation"><input id="training-history-only" type="checkbox" required>我確認來源是開發用 history，未包含 dev 或其他保留測試集。</label>
       <label id="training-cloud-label" class="training-attestation" hidden><input id="training-cloud" type="checkbox">我允許將這次選取的 history、程式、公共對照表與 BGE 模型傳送至 Modal，並使用帳號 GPU 額度（可能產生費用）。</label>
       <div class="experiment-actions"><span class="detail-note">同時只允許一個訓練工作；不會讀取 dev 或覆寫既有模型。</span><button id="start-training" type="submit" class="button primary">開始訓練與保存 →</button></div>
