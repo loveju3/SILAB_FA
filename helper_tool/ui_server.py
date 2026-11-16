@@ -17,6 +17,11 @@ import uuid
 import webbrowser
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _venv  # noqa: E402
+
+if __name__ == "__main__":
+    _venv.ensure()
 try:
     from .common import ROOT, read_records
     from .evaluate import analyze, write_reports

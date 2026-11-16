@@ -6,6 +6,10 @@ from pathlib import Path
 import sys
 import time
 
+import _venv
+
+if __name__ == "__main__":
+    _venv.ensure()
 STARTED = time.monotonic()
 for stream in (sys.stdout, sys.stderr):
     if hasattr(stream, "reconfigure"):

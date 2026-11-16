@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import urllib.error
 import urllib.request
 import zipfile
 import zlib
@@ -26,6 +27,11 @@ MODEL_URL = ("https://huggingface.co/bartowski/Qwen_Qwen3-1.7B-GGUF/resolve/"
 RUNTIME_URL = ("https://github.com/ggml-org/llama.cpp/releases/download/"
                + RUNTIME_TAG + "/llama-" + RUNTIME_TAG + "-bin-win-cpu-x64.zip")
 MAC_RUNTIME_SHA256 = "6263965248c6c17b942eee1d91d9f810566d2ed1a7ec884130deb2339baee842"
+# Official CPU builds for Linux; same tar layout as macOS (llama-<tag>/llama-server + .so files).
+LINUX_RUNTIME_SHA256 = {
+    "x64": "60c318605a52ad7b15640cae72d6cb6b84b9737d4322be84f4a8e4bde699c1d7",
+    "arm64": "5ee16075f1679e04fce6cef6622cbc1eea586add63cff3c512ba3ef0c981eba1",
+}
 
 
 def runtime_asset(system=None, machine=None):
@@ -36,7 +42,12 @@ def runtime_asset(system=None, machine=None):
     if system == "darwin" and machine in {"arm64", "aarch64"}:
         name = f"llama-{RUNTIME_TAG}-bin-macos-arm64.tar.gz"
         return f"https://github.com/ggml-org/llama.cpp/releases/download/{RUNTIME_TAG}/{name}", MAC_RUNTIME_SHA256
-    raise ValueError("自動安裝支援 Windows x64、Mac Apple Silicon；Linux 請自行安裝原生 llama.cpp")
+    if system.startswith("linux") and machine in {"x86_64", "amd64", "aarch64", "arm64"}:
+        arch = "x64" if machine in {"x86_64", "amd64"} else "arm64"
+        name = f"llama-{RUNTIME_TAG}-bin-ubuntu-{arch}.tar.gz"
+        return (f"https://github.com/ggml-org/llama.cpp/releases/download/{RUNTIME_TAG}/{name}",
+                LINUX_RUNTIME_SHA256[arch])
+    raise ValueError("自動安裝支援 Windows x64、Mac Apple Silicon、Linux x64／arm64")
 
 
 def extract_runtime(archive, runtime):
@@ -55,7 +66,7 @@ def extract_runtime(archive, runtime):
                         continue
                 source.extract(entry, runtime)
     else:
-        # macOS release assets contain a versioned top-level folder. Keep all
+        # macOS/Linux release assets contain a versioned top-level folder. Keep all
         # accompanying dylibs and their relative symlinks beside llama-server.
         with tempfile.TemporaryDirectory(dir=runtime.parent) as temporary:
             with tarfile.open(archive, "r:gz") as source:
@@ -74,13 +85,33 @@ def sha256(path):
     return digest.hexdigest()
 
 
+CERT_HINT = ("Python 找不到 SSL 根憑證。python.org 版 Python 請執行"
+             "「/Applications/Python 3.x/Install Certificates.command」後重跑")
+
+
+def fetch(url, partial):
+    """Prefer the system curl: it uses the OS certificate store, while python.org
+    builds on macOS ship without CA certificates until Install Certificates runs."""
+    curl = shutil.which("curl.exe" if sys.platform == "win32" else "curl")
+    if curl:
+        subprocess.run([curl, "-fSL", "--retry", "3", "--connect-timeout", "30",
+                        "--progress-bar", "-o", str(partial), url], check=True)
+        return
+    try:
+        with urllib.request.urlopen(url, timeout=60) as source, partial.open("wb") as output:
+            shutil.copyfileobj(source, output, length=1024 * 1024)
+    except urllib.error.URLError as exc:
+        if "CERTIFICATE_VERIFY_FAILED" in str(exc):
+            raise ValueError(CERT_HINT) from exc
+        raise
+
+
 def download(url, target, expected=None):
     if target.exists() and (expected is None or sha256(target) == expected):
         return
     partial = target.with_suffix(target.suffix + ".part")
     print("Downloading " + target.name, flush=True)
-    with urllib.request.urlopen(url, timeout=60) as source, partial.open("wb") as output:
-        shutil.copyfileobj(source, output, length=1024 * 1024)
+    fetch(url, partial)
     if expected and sha256(partial) != expected:
         raise ValueError("SHA256 mismatch: " + target.name)
     partial.replace(target)

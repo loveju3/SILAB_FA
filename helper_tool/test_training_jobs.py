@@ -95,7 +95,11 @@ class TrainingJobsTest(unittest.TestCase):
 
     def test_modal_resources_are_frozen_in_job_config(self):
         resources = jobs.ModalSettings('test-training', 'L4', 1, 4096, 600)
+        # The real encoder is an optional download; only its presence is checked here.
+        manifest = self.root / 'encoder_manifest.json'
+        manifest.write_text('{}', encoding='utf-8')
         with patch.object(jobs.ModalSettings, 'load', return_value=resources), \
+             patch.object(jobs, 'BGE_ENCODER_MANIFEST', manifest), \
              patch.object(jobs.subprocess, 'Popen', side_effect=OSError('synthetic failure')):
             with self.assertRaises(OSError):
                 jobs.start_job({**self.payload, 'kind': 'bge-finetune', 'backend': 'modal',

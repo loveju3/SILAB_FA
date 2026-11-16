@@ -1,5 +1,11 @@
+# Shared ML dependencies; included by requirements-embedding.txt.
+# Exact pins preserve the existing environment (docs/setup/validation-2026-11-15.md).
+# NumPy is used directly by BgeEncoder.transform/encode, including fine-tuned inference.
+# 2.3.4 is a project pin, not an exact version required by the algorithm or upstream.
 numpy==2.3.4
+# SciPy and scikit-learn provide TF-IDF and linear classification dependencies.
 scipy==1.16.3
 scikit-learn==1.7.2
+# Trusted local classifier persistence and numerical thread pool control.
 joblib==1.5.2
 threadpoolctl==3.6.0

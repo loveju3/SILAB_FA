@@ -49,7 +49,7 @@ class LocalModel:
 
     def __enter__(self):
         if not self.model.is_file() or not self.server.is_file():
-            raise FileNotFoundError("缺少本機模型或 llama-server；請先執行 agent/setup.py，推論不會自行下載")
+            raise FileNotFoundError("缺少本機模型或 llama-server；請先執行 python3 install.py --with-agent（推論不會自行下載）")
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]

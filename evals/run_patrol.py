@@ -13,6 +13,11 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import _venv  # noqa: E402
+
+if __name__ == "__main__":
+    _venv.ensure()
 
 
 def load_source(dataset):

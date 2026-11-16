@@ -1,6 +1,13 @@
+# Shared TF-IDF / BGE / fine-tuned BGE Python environment (Python 3.12/3.13).
+# Includes NumPy, SciPy, scikit-learn, joblib and threadpoolctl; do not omit -r.
+# Pins preserve the existing tested environment, not upstream minimum versions.
+# Dependency rationale and installation troubleshooting: ../docs/setup/python-dependencies.md
 -r requirements-ml.txt
+# BgeEncoder and neural classification heads (triage/embedding.py, triage/neural.py).
 torch==2.9.0
+# Local encoder / tokenizer loading. Transformers also requires NumPy.
 transformers==4.57.1
 huggingface-hub==0.36.0
 tokenizers==0.22.1
+# Encoder and neural head checkpoint loading.
 safetensors==0.6.2

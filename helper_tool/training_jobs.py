@@ -22,6 +22,8 @@ KINDS = {"bge-finetune", "bge-frozen", "tfidf"}
 TERMINAL = {"succeeded", "failed", "interrupted"}
 
 
+BGE_ENCODER_MANIFEST = ROOT / 'Solution/models/bge-small-zh-v1.5/encoder_manifest.json'
+
 def acquire_lock(fd):
     if os.name == 'nt':
         import msvcrt
@@ -129,7 +131,7 @@ def start_job(payload):
         python = runtime if runtime.is_file() else Path(sys.executable)
     if not python.is_file():
         raise ValueError("請先建立專案 .venv 並安裝模型訓練依賴")
-    if kind.startswith('bge') and not (ROOT / 'Solution/models/bge-small-zh-v1.5/encoder_manifest.json').is_file():
+    if kind.startswith('bge') and not BGE_ENCODER_MANIFEST.is_file():
         raise ValueError("請先下載固定 BGE encoder，訓練不會自行連網下載")
     REGISTRY.mkdir(parents=True, exist_ok=True)
     lock_fd = os.open(REGISTRY / '.training.lock', os.O_CREAT | os.O_RDWR, 0o600)
