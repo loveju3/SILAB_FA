@@ -64,7 +64,7 @@ class ModalArchiveTest(unittest.TestCase):
         files.update({'models/' + row['variant']: 'synthetic model' for row in results})
         with tempfile.TemporaryDirectory() as temporary:
             restore_archive(self.archive(files), Path(temporary))
-            report = json.loads((Path(temporary) / 'models/comparison.json').read_text())
+            report = json.loads((Path(temporary) / 'models/comparison.json').read_text(encoding='utf-8'))
             self.assertEqual(report['training_backend'], 'modal')
             self.assertTrue(all(Path(row['model_path']).is_file() for row in report['results']))
 

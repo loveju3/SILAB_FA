@@ -64,8 +64,9 @@ def atomic_write(path: Path, text: str) -> None:
     # A failed run must not leave a partial file that looks like valid predictions.
     temp_path = None
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
-                                         delete=False) as stream:
+        # newline="\n": deliverable JSONL must be LF on every OS (SHA-256 is cited in bench.md).
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n",
+                                         dir=path.parent, delete=False) as stream:
             temp_path = Path(stream.name)
             stream.write(text)
         for attempt in range(8):
