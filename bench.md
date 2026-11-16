@@ -62,7 +62,7 @@ B／C 四個方案的分數與時間，來自 11/16 用相同配方重訓的版�
 | C-LR | 0.792 | 0.993 | 1.000 | 0.750 | 0.865 |
 | baseline | 0.482 | 0.727 | 0.518 | 0.000 | 0.442 |
 
-總分 = 0.4 × category ＋ 0.2 × device ＋ 0.2 × urgency ＋ 0.2 × duplicate。urgency 與 device 各方案幾乎相同（共用同一套規則），差距主要來自 category，以及受 category 影響的 duplicate（重複報修的比對鍵包含類別）。
+總分 = 0.4 × category ＋ 0.2 × device ＋ 0.2 × urgency ＋ 0.2 × duplicate。urgency 與 device 共用同一套規則，所以各方案幾乎相同；B 的 device 較低（0.960），是因為官方的 device 分數也算「正確說不知道」，而這要求 device 與 category 同時填 null；B 在資訊不足的工單上仍常給出類別，所以這部分失分。差距主要來自 category，以及受 category 影響的 duplicate（重複報修的比對鍵包含類別）。
 
 預設方案 C-FT 的 `evaluate.py` 原始輸出（分數區塊；evaluate.py 另外印出的建議範例含 dev 原文，依資料規範不放進 repo）：
 
@@ -131,13 +131,13 @@ python3 baseline/evaluate.py dev_predictions.jsonl data/dev.jsonl
 2. **交付檔就是這份程式產生的**：C-FT 的輸出（不限記憶體、RLIMIT_AS 2 GiB、Docker 2 GiB 三種情況都一樣）與 repo 的 `tickets_predictions.jsonl`、`tickets_predictions_2gb.jsonl` SHA-256 完全相同。
 3. **結果穩定**：每個方案 3 次的輸出逐位元相同，筆數與 ticket_id 都和輸入一致；外部量到的總時間大於程序內部記錄的時間。
 4. **2 GiB 限制確實生效**：用 RLIMIT_AS 在程序啟動前設定 2 GiB 位址空間硬上限。位址空間一定大於等於實際佔用的記憶體，所以在它之下跑完，代表記憶體從未超過 2 GiB。在同一限制下故意配置 2.5 GiB 會得到 `MemoryError`，子程序讀回的限制為 `(2147483648, 2147483648)`。C-FT 另在 Docker cgroup 的 2 GiB 容器通過（超量探測被 OOMKilled，3 次正式執行峰值 ≤ 518 MiB），見 [budget.md](budget.md)。
-5. **和其他機器的量測方向一致**：11/13 在 Apple M4 Max 的獨立量測（附錄）與這次結果同一個量級；Mac 上用 `run_demo.py` 跑一次 C-FT 為 17.8 秒。
+5. **和其他機器的量測方向一致**：11/13 在 Apple M4 Max 的獨立量測（附錄）與這次結果同一個量級；Mac 上用 `run_demo.py` 跑一次 C-FT 為 17.8 秒。Windows 11 筆電（i7-13620H、Python 3.13.5）用同一支腳本各跑 3 次：C-FT 32.6～35.6 秒、峰值 458 MiB，輸出與交付檔相同；A 3.3～3.5 秒。見 [evidence/2026-11-16-windows](evidence/2026-11-16-windows/README.md)。
 
 ---
 
 ## 限制
 
-- 7 個方案的完整比較只在一台 Linux VM 上量測；沒有在實體 8 GB 筆電上驗證。Mac 上有 C-FT 的單次結果（17.8 秒）與 Docker 2 GiB 的 3 次結果。
+- 7 個方案的完整比較只在一台 Linux VM 上量測；沒有在限制 8 GB 記憶體的環境驗證。其他機器只量了部分方案：Mac 有 C-FT 單次結果（17.8 秒）與 Docker 2 GiB 的 3 次結果，Windows 筆電有 C-FT 與 A 各 3 次。
 - B／C 的原始 11/13 模型檔已不在本機，表中 B／C 的數字來自 11/16 用同一份 history、相同預設配方重訓的版本。B 的兩個模型大小與原紀錄完全相同，C-SVC 分類頭差 1 byte；各模型雜湊見 evidence。
 - 主表的「在 2 GiB 上限下」用的是 RLIMIT_AS；Docker 容器驗證只做了 C-FT（budget.md）與方案 A（2026-11-13，Solution/budget.md）。
 - baseline 只量了總時間與記憶體（3 次都約 0.02 秒），它沒有逐筆計時。
