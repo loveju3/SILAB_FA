@@ -18,6 +18,38 @@ from triage.metrics import latency_summary, peak_rss_bytes
 from triage.pipeline import predict
 
 SOLUTION = Path(__file__).resolve().parent
+FINETUNED = ROOT / "transfer/finetuned"
+MEMORY_LIMITS = {"2g": 2 * 1024 ** 3}
+
+
+def choose_method(args):
+    """Default to the fine-tuned model when installed; 2 GB mode uses scheme A."""
+    if args.mem_limit:
+        if args.method not in (None, "rules"):
+            raise ValueError("--mem-limit 2g 固定使用方案 A（rules），不可與其他 --method 併用")
+        apply_memory_limit(MEMORY_LIMITS[args.mem_limit])
+        return "rules", None
+    if args.method:
+        if args.method == "bge-finetuned" and args.model_path is None:
+            return args.method, FINETUNED
+        return args.method, args.model_path
+    if (FINETUNED / "model.json").is_file():
+        return "bge-finetuned", FINETUNED
+    print("警告：找不到 transfer/finetuned 微調模型（請先執行 python3 install.py），改用方案 A 規則版。",
+          file=sys.stderr)
+    return "rules", None
+
+
+def apply_memory_limit(limit):
+    """Best-effort process cap on Linux; budget.md documents the Docker 2 GiB verification."""
+    if not sys.platform.startswith("linux"):
+        return
+    import resource
+    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    if hard != resource.RLIM_INFINITY:
+        limit = min(limit, hard)
+    if soft == resource.RLIM_INFINITY or soft > limit:
+        resource.setrlimit(resource.RLIMIT_AS, (limit, hard))
 
 
 def main(argv=None) -> int:
@@ -25,10 +57,15 @@ def main(argv=None) -> int:
     parser.add_argument("input", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--metrics", type=Path, help="額外寫入量測與逐筆耗時 JSON")
-    parser.add_argument("--method", choices=METHODS, default="rules")
-    parser.add_argument("--model-path", type=Path, help="本機訓練產生的可信 joblib 模型；預設 Solution/models/<method>.joblib")
+    parser.add_argument("--method", choices=METHODS,
+                        help="預設：已安裝 transfer/finetuned 時用 bge-finetuned，否則 rules")
+    parser.add_argument("--model-path", type=Path,
+                        help="模型路徑；bge-finetuned 預設 transfer/finetuned，其他預設 Solution/models/<method>.joblib")
+    parser.add_argument("--mem-limit", choices=sorted(MEMORY_LIMITS),
+                        help="2 GB 演練模式：固定使用方案 A（見 budget.md）")
     args = parser.parse_args(argv)
     try:
+        args.method, args.model_path = choose_method(args)
         if args.input.resolve() == args.output.resolve():
             raise ValueError("輸出不可覆蓋輸入")
         if args.metrics and args.metrics.resolve() in {args.input.resolve(), args.output.resolve()}:

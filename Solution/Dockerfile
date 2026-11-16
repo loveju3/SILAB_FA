@@ -10,4 +10,4 @@ COPY Solution/config/ /app/Solution/config/
 COPY Solution/predict.py /app/Solution/predict.py
 COPY Solution/scripts/check_limits.py /app/Solution/scripts/check_limits.py
 ENTRYPOINT ["python3"]
-CMD ["Solution/predict.py", "data/tickets.jsonl", "/results/tickets_predictions.jsonl", "--metrics", "/results/metrics.json"]
+CMD ["Solution/predict.py", "data/tickets.jsonl", "/results/tickets_predictions.jsonl", "--method", "rules", "--metrics", "/results/metrics.json"]

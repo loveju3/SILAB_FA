@@ -124,7 +124,8 @@ class PipelineTest(unittest.TestCase):
     def test_cli_from_other_directory_and_failure_preserves_output(self):
         input_path, output, metrics = [self.path / n for n in ("input.jsonl", "output.jsonl", "metrics.json")]
         input_path.write_text(json.dumps(self.row("1", "空壓機很吵")), encoding="utf-8")
-        cmd = [sys.executable, str(ROOT / "predict.py"), str(input_path), str(output), "--metrics", str(metrics)]
+        cmd = [sys.executable, str(ROOT / "predict.py"), str(input_path), str(output), "--method", "rules",
+               "--metrics", str(metrics)]
         result = subprocess.run(cmd, cwd=self.path, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "")
@@ -135,6 +136,44 @@ class PipelineTest(unittest.TestCase):
         result = subprocess.run(cmd, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(output.read_bytes(), before)
+
+
+class MethodSelectionTest(unittest.TestCase):
+    """Two-argument default, explicit methods and the 2 GB mode."""
+
+    def choose(self, *argv, installed=True):
+        import argparse
+        import importlib.util
+        from unittest import mock
+        spec = importlib.util.spec_from_file_location("solution_predict_cli", SOLUTION / "predict.py")
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+        args = argparse.Namespace(method=None, model_path=None, mem_limit=None)
+        for key, value in zip(argv[::2], argv[1::2]):
+            setattr(args, key, value)
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(cli, "apply_memory_limit") as limit:
+            model = Path(folder) / "finetuned"
+            if installed:
+                model.mkdir()
+                (model / "model.json").write_text("{}", encoding="utf-8")
+            with mock.patch.object(cli, "FINETUNED", model):
+                method, path = cli.choose_method(args)
+            return method, path == model, limit.called
+
+    def test_default_prefers_installed_finetuned_model(self):
+        self.assertEqual(self.choose(), ("bge-finetuned", True, False))
+
+    def test_default_falls_back_to_rules_without_model(self):
+        method, _, _ = self.choose(installed=False)
+        self.assertEqual(method, "rules")
+
+    def test_explicit_method_and_mem_limit(self):
+        self.assertEqual(self.choose("method", "rules")[0], "rules")
+        self.assertEqual(self.choose("method", "bge-finetuned")[:2], ("bge-finetuned", True))
+        self.assertEqual(self.choose("mem_limit", "2g"), ("rules", False, True))
+        with self.assertRaises(ValueError):
+            self.choose("mem_limit", "2g", "method", "bge-finetuned")
 
 
 if __name__ == "__main__":
