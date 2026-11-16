@@ -8,7 +8,7 @@
 
 ## 快速開始
 
-支援 macOS Apple Silicon、Windows x64、Linux（Python 3.12／3.13；Windows 把 `python3` 換成 `python`）。詳細說明與常見問題見 [docs/setup](docs/setup/README.md)。
+支援 macOS Apple Silicon、Windows x64、Linux（Python 3.12／3.13；Windows 把 `python3` 換成 `python`，因為 Windows 的 `python3` 通常是 Microsoft Store 捷徑，執行後不會有任何輸出，見[常見問題](docs/setup/README.md#常見問題)）。詳細說明與常見問題見 [docs/setup](docs/setup/README.md)。
 
 ```bash
 git clone https://github.com/loveju3/SILAB_FA.git && cd SILAB_FA

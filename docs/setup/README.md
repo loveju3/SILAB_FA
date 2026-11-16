@@ -82,6 +82,7 @@ python3 run_demo.py --evals         # 另外跑 Agent 評測（每題冷啟動�
 
 | 狀況 | 處理 |
 |---|---|
+| Windows 打 `python3 …` 沒有任何輸出就結束 | 那個 `python3` 是 Microsoft Store 的應用程式執行別名（`%LOCALAPPDATA%\Microsoft\WindowsApps\python3.exe`），不是真的 Python，不會執行程式（結束碼 9009）。python.org 版只會建立 `python`／`py`，請改用 `python …`；想沿用 `python3` 可在 PowerShell 執行 `Set-Alias python3 python` |
 | `找不到 Python 3.12 或 3.13` | macOS：`brew install python@3.13` 或到 python.org 安裝；Windows：`winget install Python.Python.3.13`（勾選 Add to PATH）；Linux：`sudo apt install python3.12 python3.12-venv`，或安裝 uv 後重跑 |
 | `建立 .venv 失敗`（Debian／Ubuntu） | `sudo apt install python3.12-venv`（或對應版本） |
 | `CERTIFICATE_VERIFY_FAILED` | python.org 版 Python 在 macOS 預設沒有 SSL 根憑證。下載已改用系統 `curl`（用作業系統憑證）避開這個問題；若電腦沒有 `curl`，執行「/Applications/Python 3.x/Install Certificates.command」後重跑 |
@@ -96,6 +97,6 @@ python3 run_demo.py --evals         # 另外跑 Agent 評測（每題冷啟動�
 
 - **Linux arm64**（VM、Python 3.13）：從全新 clone 跑完 `install.py` → `run_demo.py --tests`，全部開發測試通過；Agent 的 Qwen 下載在該 VM 被網路政策擋住，llama.cpp Linux 版因 VM 的 glibc 2.35 無法執行，所以第二部分未在 Linux 實跑。
 - **macOS Apple Silicon**：以同一組固定套件實測過安裝與模型推論（[紀錄](../advanced/validation-2026-11-16-macos.md)）；`install.py` 的整段流程請以實際執行結果為準。
-- **Windows x64**：先前已用同一組固定套件與 Agent 完成兩階段實測（[紀錄](../advanced/validation-2026-11-15.md)）；`install.py` 的 Windows 分支依程式邏輯撰寫，尚未在 Windows 實機執行。
+- **Windows x64**（Windows 11 Home、Intel i7-13620H、15.7 GiB RAM、Python 3.13.5）：2026-11-16 從全新 clone（commit `906fc86`）執行 `python install.py --with-agent`，建立 `.venv`、安裝套件、下載並校驗微調模型、推論自測、下載 Qwen 與 llama.cpp，最後 `llama-server` 可執行，結果 `安裝結果：PASS`。安裝後的預測、評分與 Agent 流程另見先前的兩階段實測（[紀錄](../advanced/validation-2026-11-15.md)）。
 
 開發者工作（重新訓練、Docker／2 GB 容器、Modal GPU、舊的手動流程）見 [進階文件](../advanced/README.md)。資料使用規範見 [AGENTS.md](../../AGENTS.md)。
