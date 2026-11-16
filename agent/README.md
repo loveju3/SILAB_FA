@@ -13,7 +13,7 @@ python3 ask.py "哪位回報人的工單最多？"
 python3 patrol.py --trace
 ```
 
-`setup.py` 固定量化儲存庫 revision、模型 SHA256 與 llama.cpp b12366。Q4 檔由 bartowski 發布、原始模型為 Qwen；不是 Qwen 官方量化檔。設定及實際 runtime 壓縮檔 SHA256 保存於本機 `agent_assets/manifest.json`。自動 setup 支援 Windows x64、Mac Apple Silicon 與 Linux x64／arm64 的官方 CPU runtime（Linux 版需要 glibc 2.38 以上）；Mac 與 Linux 尚未完成 Agent 實機端到端驗證。也可自行安裝同版本 llama.cpp，使用 `--server /absolute/path/llama-server --model /absolute/path/model.gguf`。CLI 預設 server 路徑隨平台選擇 `.exe` 或原生執行檔。
+`setup.py` 固定量化儲存庫 revision、模型 SHA256 與 llama.cpp b12366。Q4 檔由 bartowski 發布、原始模型為 Qwen；不是 Qwen 官方量化檔。設定及實際 runtime 壓縮檔 SHA256 保存於本機 `agent_assets/manifest.json`。自動 setup 支援 Windows x64、Mac Apple Silicon 與 Linux x64／arm64 的官方 CPU runtime（Linux 版需要 glibc 2.38 以上）；已在 Windows 原生與 macOS（Apple Silicon，`install.py --with-agent` 後問答 9.1 秒、巡檢 38.2 秒）實跑，Linux 與 WSL 尚未完成 Agent 實機端到端驗證。也可自行安裝同版本 llama.cpp，使用 `--server /absolute/path/llama-server --model /absolute/path/model.gguf`。CLI 預設 server 路徑隨平台選擇 `.exe` 或原生執行檔。
 
 推論不下載資源，也不連外：每次 CLI 啟動自己的 CPU `llama-server`，只綁定 `127.0.0.1`，HTTP client 禁用 proxy，模型在同題內重用，結束時關閉。Windows Job Object 確保 CLI 被終止時一併結束模型子程序。這使用本機 loopback 通訊；若驗收完全禁止本機 socket，需改為進程內 llama.cpp binding。
 

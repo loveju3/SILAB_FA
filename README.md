@@ -34,7 +34,7 @@ python3 run_demo.py                 # dev 評分、兩份 tickets 預測、ask.p
 | `budget.md` | [budget.md](budget.md)（完整證據：[Solution/budget.md](Solution/budget.md)） |
 | `ask.py`（支援 `--trace`）、`patrol.py` | [ask.py](ask.py)、[patrol.py](patrol.py)，設計見[第 4 段](#4-agent-與評測設計)與 [agent/README.md](agent/README.md) |
 | `evals/`（≥10 題、一鍵跑分、報告） | [evals/run.py](evals/run.py)、[驗證報告](agent/VALIDATION.md) |
-| `ai-log/` | [ai-log/](ai-log/2026-11-14-agent.md) |
+| `ai-log/` | [ai-log/](ai-log/) |
 
 **重要開發規則：不得觀察 `dev.jsonl` 的資料來設計算法；dev 僅供固定版本驗證。** 開發與調參使用 history，完整規範見 [AGENTS.md](AGENTS.md)。既有方案 A 曾參考 dev，其成績只作歷史開發驗證紀錄。
 
@@ -82,7 +82,7 @@ python3 run_demo.py                 # dev 評分、兩份 tickets 預測、ask.p
 
 整理交付時也有三次是靠實測修正原本的計畫：原本打算直接把預設改成微調模型，對照 HW_RULES 才發現它當時沒有 dev 分數與計時，等於拿未量測的模型參加隱藏評分，所以先補量測再決定；AI 寫的安裝腳本在 Linux 測試都通過，我在 Mac 實跑時才發現 python.org 版 Python 沒有 SSL 根憑證、下載失敗，改用系統 curl 修正；`budget.md` 原本把 2 GB 版本換成方案 A，我追問「峰值沒超過 2 GB 為什麼要換」，補做 Docker 2 GiB 實測後改回沿用 C-FT，不再白白掉分。
 
-上述需求節錄與開發摘要可搭配 [ai-log](ai-log/2026-11-14-agent.md) 閱讀；它們不等於完整原始對話匯出，去識別化的原始協作紀錄仍待整理。實際工單、答案及逐筆 trace 不加入 Git。
+上述需求節錄與開發摘要可搭配 [ai-log](ai-log/) 閱讀；它們不等於完整原始對話匯出，去識別化的原始協作紀錄仍待整理。實際工單、答案及逐筆 trace 不加入 Git。
 
 ## 4. Agent 與評測設計
 

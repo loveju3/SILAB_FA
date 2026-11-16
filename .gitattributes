@@ -1,0 +1,3 @@
+# Deliverable predictions must be byte-identical on every OS (their SHA-256 is
+# cited in bench.md, budget.md and evidence/), so never convert to CRLF.
+*.jsonl text eol=lf
