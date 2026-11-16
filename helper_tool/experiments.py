@@ -31,7 +31,9 @@ def safe_name(name: str) -> str:
 
 def execute(method: str, limit: str, folder: Path, model_path: Path | None = None) -> dict:
     script = METHODS[method]
-    options = ["--method", method] if method in MODEL_METHODS else []
+    # predict.py now defaults to fine-tuned BGE, so scheme A must request rules explicitly.
+    options = (["--method", method] if method in MODEL_METHODS else
+               ["--method", "rules"] if method == "solution-a" else [])
     if model_path is not None:
         options.extend(["--model-path", str(model_path)])
     args = [script, str(folder / "input.jsonl"), str(folder / "predictions.jsonl"), *options]

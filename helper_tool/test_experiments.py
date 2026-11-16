@@ -118,6 +118,8 @@ class ExperimentTest(unittest.TestCase):
         for flag in ("--memory=2g", "--memory-swap=2g", "--network=none", "--cpus=2", "--pull=never"):
             self.assertIn(flag, command)
         self.assertIn("limits", result)
+        # predict.py defaults to fine-tuned BGE; scheme A must ask for rules explicitly.
+        self.assertEqual(command[command.index("--method") + 1], "rules")
         self.assertEqual(process.call_args_list[-1].args[0][:3], ["docker", "rm", "-f"])
 
     def test_container_false_limit_and_failure_are_not_success(self):
