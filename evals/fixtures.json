@@ -620,6 +620,56 @@
       "split": "dev",
       "evidence_required": false,
       "expected_evidence": []
+    },
+    {
+      "id": "lookup-simplified-location",
+      "question": "B1 动力室有哪些设备？请回设备编号清单。",
+      "answer": ["D01", "D06"],
+      "rationale": "位置用簡體字書寫，應對應到設備表的 B1 動力室，不因寫法不同回空清單。",
+      "category": "lookup_variant",
+      "split": "dev",
+      "evidence_required": false,
+      "expected_evidence": []
+    },
+    {
+      "id": "lookup-simplified-device",
+      "question": "空压机的型号是什么？",
+      "answer": "AC-75",
+      "rationale": "設備名稱用簡體字書寫，應對應到 D01 空壓機。",
+      "category": "lookup_variant",
+      "split": "dev",
+      "evidence_required": false,
+      "expected_evidence": []
+    },
+    {
+      "id": "lookup-similar-location-missing",
+      "question": "二樓機房有哪些設備？回設備編號清單。",
+      "answer": [],
+      "rationale": "與三樓機房只差一字但不存在，必須回空清單，不能拿相似位置代替。",
+      "category": "lookup_variant",
+      "split": "dev",
+      "evidence_required": false,
+      "expected_evidence": []
+    },
+    {
+      "id": "lookup-similar-device-missing",
+      "question": "D13 的型號是什麼？找不到請回 null。",
+      "answer": null,
+      "rationale": "與既有編號相近但不存在的設備，必須回 null。",
+      "category": "lookup_variant",
+      "split": "dev",
+      "evidence_required": false,
+      "expected_evidence": []
+    },
+    {
+      "id": "lookup-similar-code-missing",
+      "question": "錯誤碼 E-21 屬於哪一類？找不到請回 null。",
+      "answer": null,
+      "rationale": "緊接在 E-20 之後但不存在的錯誤碼，必須回 null。",
+      "category": "lookup_variant",
+      "split": "dev",
+      "evidence_required": false,
+      "expected_evidence": []
     }
   ]
 }

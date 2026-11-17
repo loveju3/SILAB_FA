@@ -93,8 +93,8 @@ class AgentTests(unittest.TestCase):
         self.assertEqual((sent, result["answer"]), ([["SYN001", "SYN002", "SYN006"]], "noise"))
         no_tickets = self.store.call("ticket_status", {"device": "D05"})
         self.assertEqual((no_tickets["answer"], no_tickets["evidence"], len(sent)), (None, [], 1))
-        with self.assertRaises(ValueError):
-            self.store.call("ticket_status", {"device": "頂樓"})
+        unknown = self.store.call("ticket_status", {"device": "頂樓"})
+        self.assertEqual((unknown["answer"], unknown["evidence"]), (None, []))
         with self.assertRaises(ValueError):
             self.store.call("ticket_status", {"device": "D01", "since": "2026-10-15T00:00:00Z"})
 
@@ -104,7 +104,8 @@ class AgentTests(unittest.TestCase):
             self.store.call("ticket_status", {"device": "D01"})
 
     def test_invalid_time_and_inverted_interval(self):
-        for args in ({"since": "2026-10-01"}, {"since": "2026-10-02T00:00:00Z", "until": "2026-10-01T00:00:00Z"}):
+        for args in ({"since": "2026-10-01T00:00:00"}, {"since": "10/01"},
+                     {"since": "2026-10-02T00:00:00Z", "until": "2026-10-01T00:00:00Z"}):
             with self.assertRaises(ValueError):
                 self.store.call("query_tickets", {"operation": "count", **args})
 
@@ -196,9 +197,90 @@ class AgentTests(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             Agent(self.store, ScriptedModel([]), time.monotonic() - 1).ask("測試")
 
-    def test_evidence_details_fail_for_unknown_id(self):
+    def test_unknown_ticket_is_null_and_partial_unknown_fails(self):
+        result = self.store.call("get_ticket_details", {"ticket_ids": ["NOT_REAL"]})
+        self.assertEqual((result["answer"], result["evidence"]), (None, []))
         with self.assertRaises(ValueError):
-            self.store.call("get_ticket_details", {"ticket_ids": ["NOT_REAL"]})
+            self.store.call("get_ticket_details", {"ticket_ids": ["SYN001", "NOT_REAL"]})
+
+    def test_ticket_field_answers_single_ticket(self):
+        result = self.store.call("get_ticket_details", {"ticket_ids": ["SYN002"], "field": "raw_text"})
+        self.assertEqual((result["answer"], result["evidence"]), ("AC-75 面板顯示 E-01", ["SYN002"]))
+        self.assertEqual(self.store.call("get_ticket_details", {"ticket_ids": ["SYN004"], "field": "reporter"})["answer"], "測試甲")
+        with self.assertRaises(ValueError):
+            self.store.call("get_ticket_details", {"ticket_ids": ["SYN001", "SYN002"], "field": "reporter"})
+
+    def test_date_shortcuts_resolve_against_snapshot(self):
+        count = lambda **args: self.store.call("query_tickets", {"operation": "count", **args})["answer"]
+        self.assertEqual(count(day="2026-10-01"), 2)
+        self.assertEqual(count(day="2026-10-03"), 0)
+        self.assertEqual(count(day="today"), count(day="2026-10-14"))
+        self.assertEqual(count(since="2026-10-01"), count(since="2026-10-01T00:00:00Z"))
+        self.assertEqual(count(until="2026-10-02"), count(until="2026-10-02T00:00:00Z"))
+        self.assertEqual(count(last_days=7), count(since="2026-10-07T15:10:00Z"))
+        for args in ({"day": "2026-11-17"}, {"since": "2026-10-14T15:10:00Z"}, {"last_days": 0}, {"day": "10/01"}):
+            with self.assertRaises(ValueError):
+                count(**args)
+        # Overlapping date arguments: the most specific wins instead of an error loop.
+        self.assertEqual(count(day="2026-10-01", since="2026-09-01", until="2026-10-14"), 2)
+        self.assertEqual(count(last_days=7, since="2026-09-01"), count(last_days=7))
+
+    def test_misplaced_arguments_explain_the_fix(self):
+        cases = [("query_tickets", {"operation": "count", "reporter": "乙"}, "測試乙"),
+                 ("query_tickets", {"operation": "count", "reporter": "D01"}, "device_id"),
+                 ("query_tickets", {"operation": "count", "reporter": "今天"}, "day"),
+                 ("query_tickets", {"operation": "top_reporter", "reporter": "2026-10-14"}, "day"),
+                 ("query_tickets", {"operation": "count", "reporter": "SYN004"}, "get_ticket_details"),
+                 ("query_tickets", {"operation": "count", "reporter": "<人名>"}, "佔位符")]
+        for tool, args, fix in cases:
+            with self.assertRaisesRegex(ValueError, fix):
+                self.store.call(tool, args)
+
+    def test_spelling_variants_map_to_public_choices_and_unknown_is_empty(self):
+        call = lambda tool, args: self.store.call(tool, args)["answer"]
+        self.assertEqual(call("devices_at_location", {"location": "B1 动力室"}), ["D01", "D06"])
+        self.assertEqual(call("devices_at_location", {"location": "二樓機房"}), [])
+        self.assertEqual(call("get_device", {"identifier": "空压机", "field": "model"}), "AC-75")
+        self.assertEqual(call("get_device", {"identifier": "ac75", "field": "device_id"}), "D01")
+        self.assertIsNone(call("get_device", {"identifier": "D13", "field": "name"}))
+        self.assertEqual(call("get_error_code", {"code": "e_03", "field": "meaning"}), "冷媒低壓警報")
+        self.assertIsNone(call("get_error_code", {"code": "meaning"}))
+        unknown = self.store.call("query_tickets", {"operation": "count", "device_id": "SYN004"})
+        self.assertEqual((unknown["answer"], unknown["evidence"]), (0, []))
+
+    def test_identifiers_are_free_text_so_unknown_targets_are_not_forced_onto_similar_ones(self):
+        from agent.core import action_schema
+        location = next(c for c in action_schema()["oneOf"] if c["properties"]["tool"]["enum"] == ["devices_at_location"])
+        self.assertNotIn("enum", location["properties"]["arguments"]["properties"]["location"])
+        call = lambda tool, args: self.store.call(tool, args)["answer"]
+        self.assertEqual(call("devices_at_location", {"location": "月球機房"}), [])
+        self.assertIsNone(call("get_device", {"identifier": "D999", "field": "name"}))
+        self.assertIsNone(call("get_error_code", {"code": "E-21"}))
+        with self.assertRaisesRegex(ValueError, "get_device"):
+            self.store.call("devices_at_location", {"location": "空壓機"})
+
+    def test_status_accepts_date_only_since(self):
+        by_date = self.store.call("ticket_status", {"device": "D01", "since": "2026-10-01"})
+        by_time = self.store.call("ticket_status", {"device": "D01", "since": "2026-10-01T00:00:00Z"})
+        self.assertEqual(by_date["answer"], by_time["answer"])
+
+    def test_device_name_resolves_and_unknown_reporter_is_zero_with_hint(self):
+        by_name = self.store.call("query_tickets", {"operation": "count", "device_id": "空壓機"})
+        self.assertEqual(by_name["answer"], self.store.call("query_tickets", {"operation": "count", "device_id": "D01"})["answer"])
+        self.assertEqual(by_name["applied_filters"]["device_id"], "D01")
+        nobody = self.store.call("query_tickets", {"operation": "count", "reporter": "王大明"})
+        self.assertEqual((nobody["answer"], nobody["evidence"]), (0, []))
+        self.assertIn("hint", nobody)
+
+    def test_decline_only_before_any_tool_call(self):
+        from agent.core import action_schema
+        result = self.run_agent([{"tool": "decline"}])
+        self.assertEqual((result["answer"], result["evidence"], result["tools_used"]), (None, [], []))
+        with self.assertRaises(ValueError):
+            self.run_agent([{"tool": "query_tickets", "arguments": {"operation": "count"}}, {"tool": "decline"}])
+        tools = lambda schema: {c["properties"]["tool"]["enum"][0] for c in schema["oneOf"]}
+        self.assertIn("decline", tools(action_schema(allow_decline=True)))
+        self.assertNotIn("decline", tools(action_schema([0])))
 
     def test_patrol_excludes_future_and_keeps_safety_excerpt(self):
         future = {**self.fixture["tickets"][0], "ticket_id": "FUTURE", "created_at": "2030-01-01T00:00:00Z"}

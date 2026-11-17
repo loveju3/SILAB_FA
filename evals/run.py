@@ -84,6 +84,8 @@ def main():
     parser.add_argument("--suite", choices=["synthetic", "history"], default="synthetic")
     parser.add_argument("--events", action="store_true", help="以 JSONL 輸出進度供本機測試 UI 使用")
     parser.add_argument("--server", type=Path, help="指定本機 CPU llama-server 路徑")
+    parser.add_argument("--model", type=Path, default=ROOT / "agent_assets/Qwen_Qwen3-1.7B-Q4_K_M.gguf",
+                        help="指定本機 GGUF 模型（預設 Qwen3-1.7B Q4_K_M）")
     args = parser.parse_args()
     if args.events and hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -96,7 +98,7 @@ def main():
     cases = select_cases(fixture["cases"], args.case, args.split)
     if not cases:
         parser.error("未知 case" if args.case else "此 split 沒有題目")
-    model = ROOT / "agent_assets/Qwen_Qwen3-1.7B-Q4_K_M.gguf"
+    model = args.model
     version = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     source_paths = [ROOT / "ask.py", *sorted((ROOT / "agent").glob("*.py")),
                     *sorted((ROOT / "evals").glob("*.py"))]
@@ -108,7 +110,8 @@ def main():
               "evaluation_data_sha256": {str(p.relative_to(ROOT)): digest(p) for p in
                   [ROOT / "evals/fixtures.json", ROOT / "data/devices.json", ROOT / "data/error_codes.json"]},
               "config": {"threads": args.threads, "timeout_s": 29, "context": 4096,
-                         "max_steps": 4, "thinking": False, "server": str(args.server) if args.server else "default"},
+                         "max_steps": 4, "thinking": False, "server": str(args.server) if args.server else "default",
+                         "model": model.name},
               "model_sha256": digest(model) if model.exists() else None, "cases": []}
     report["assets"] = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else None
     if args.events:
@@ -120,7 +123,7 @@ def main():
         for case in cases:
             started = time.monotonic()
             command = [sys.executable, str(ROOT / "ask.py"), case["question"], "--tickets", str(tickets),
-                       "--threads", str(args.threads), "--trace"]
+                       "--threads", str(args.threads), "--model", str(model), "--trace"]
             if args.server:
                 command.extend(["--server", str(args.server)])
             row = {"id": case["id"], "question": case["question"], "expected": case["answer"],
