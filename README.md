@@ -23,12 +23,14 @@
 
 ```bash
 git clone https://github.com/loveju3/SILAB_FA.git && cd SILAB_FA
-# 把題目附的 devices.json、error_codes.json、tickets.jsonl、history.jsonl、dev.jsonl 放進 data/
+mkdir data                          # data/ 已被 Git 忽略，clone 後要自己建
+cp <題目附檔資料夾>/{devices.json,error_codes.json,tickets.jsonl,history.jsonl,dev.jsonl} data/
 python3 install.py --with-agent     # 建 .venv、裝 CPU 套件、下載並校驗模型、推論自測；看到 PASS 即完成
 python3 run_demo.py                 # dev 評分、兩份 tickets 預測、ask.py --trace 與 patrol.py 示範
 ```
 
-- 模型權重不放 Git。`install.py` 會從 [GitHub Release](https://github.com/loveju3/SILAB_FA/releases/tag/models-20261115) 下載微調模型（76 MB），校驗 SHA-256 後放到 `transfer/finetuned/`。`--with-agent` 會另外下載 Qwen3-1.7B 與 llama.cpp；只跑第一部分可以省略。
+- `cp` 那行是 bash／zsh 寫法；Windows 直接用檔案總管把 5 個檔案複製進 `data/` 即可。`devices.json`、`error_codes.json` 是必要檔，缺少時 `install.py` 會失敗；缺工單檔（`tickets`／`history`／`dev`）只會略過相關步驟。
+- 預設的微調模型不放 Git（方案 B／C 的四個小型分類模型在 `Solution/models/`，見 [docs/setup](docs/setup/README.md#模型從哪裡來)）。`install.py` 會從 [GitHub Release](https://github.com/loveju3/SILAB_FA/releases/tag/models-20261115) 下載微調模型（76 MB），校驗 SHA-256 後放到 `transfer/finetuned/`。`--with-agent` 會另外下載 Qwen3-1.7B 與 llama.cpp；只跑第一部分可以省略。
 - **不需要手動啟用虛擬環境**：`predict.py`、`ask.py` 等入口會自動改用 `.venv`，題目規格的指令可以直接照打。
 - 推論全程離線、只用 CPU。
 
