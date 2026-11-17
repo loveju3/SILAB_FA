@@ -36,8 +36,8 @@ class AgentTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def run_agent(self, actions, **kwargs):
-        return Agent(self.store, ScriptedModel(actions), time.monotonic() + 3, **kwargs).ask("合成測試")
+    def run_agent(self, actions, question="合成測試", **kwargs):
+        return Agent(self.store, ScriptedModel(actions), time.monotonic() + 3, **kwargs).ask(question)
 
     def test_public_lookup_does_not_read_tickets(self):
         store = Store(Path(self.temp.name) / "nonexistent.jsonl")
@@ -188,6 +188,57 @@ class AgentTests(unittest.TestCase):
         actions = [{"tool": "query_tickets", "arguments": {"operation": "count"}}] * 2
         actions += [{"tool": "finish", "result_id": 0}]
         self.assertEqual(self.run_agent(actions)["tools_used"], ["query_tickets"])
+
+    def test_dropped_device_or_date_is_flagged_once_then_model_decides(self):
+        count = {"tool": "query_tickets", "arguments": {"operation": "count", "since": "2026-10-01"}}
+        fixed = {"tool": "query_tickets", "arguments": {"operation": "count", "since": "2026-10-01",
+                                                        "device_id": "D01"}}
+        question = "2026-10-01 之後 D01 有幾張工單？"
+        result = self.run_agent([count, fixed, {"tool": "finish", "result_id": 1}], question=question)
+        expected = self.store.call("query_tickets", fixed["arguments"])["answer"]
+        self.assertEqual(result["answer"], expected)
+        self.assertEqual(result["tools_used"], ["query_tickets"])  # the flagged call never ran
+        # Resending unchanged overrides the warning instead of looping.
+        result = self.run_agent([count, count, {"tool": "finish", "result_id": 1}], question=question)
+        self.assertEqual(result["answer"], self.store.call("query_tickets", count["arguments"])["answer"])
+
+    def test_changed_arguments_are_rechecked_at_most_twice(self):
+        question = "D01 有幾張？"
+        bad = [{"tool": "query_tickets", "arguments": {"operation": "count", **extra}}
+               for extra in ({}, {"contains_any": ["D01"]}, {"contains_any": ["空壓機"]})]
+        result = self.run_agent(bad + [{"tool": "finish", "result_id": 2}], question=question)
+        self.assertEqual(result["answer"], self.store.call("query_tickets", bad[2]["arguments"])["answer"])
+
+    def test_warning_suggests_a_complete_action(self):
+        from agent.tools import question_dates
+        message = self.store.missing_filters("2026-10-01 之後 D05 有幾張？",
+                                             {"operation": "count", "contains_any": ["D05"]})
+        self.assertIn('"device_id": "D05"', message)
+        # Grammar order (required, then optional in schema order) or the model cannot copy it.
+        message = self.store.missing_filters("2026-10-01 之後 D05 有幾張？",
+                                             {"operation": "count", "since": "2026-10-01"})
+        self.assertIn('{"operation": "count", "device_id": "D05", "since": "2026-10-01"}', message)
+        self.assertNotIn("contains_any", message.split("改送：")[1].split("（")[0])
+        self.assertEqual(question_dates("2026-10-01 之後"), {"since": "2026-10-01"})
+        self.assertEqual(question_dates("10/1 那天"), {"day": "2026-10-01"})
+        self.assertEqual(question_dates("9/30 之前"), {"until": "2026-09-30"})
+        self.assertEqual(question_dates("今天"), {"day": "today"})
+        self.assertEqual(question_dates("昨天"), {"day": "2026-10-13"})
+        self.assertEqual(question_dates("最近 3 天"), {"last_days": 3})
+        self.assertIsNone(question_dates("最近一次"))
+
+    def test_missing_filter_check_cases(self):
+        check = self.store.missing_filters
+        self.assertIn("D01", check("D01 2026-10-01 之後有幾張？", {"operation": "count", "since": "2026-10-01"}))
+        self.assertIn("D01", check("空压机有幾張？", {"operation": "count"}))  # simplified name
+        self.assertIn("D01", check("D01 有幾張？", {"operation": "count", "device_id": "D06"}))
+        self.assertIn("day", check("今天有幾張工單？", {"operation": "count"}))
+        self.assertIn("day", check("最近 7 天有幾張？", {"operation": "count"}))
+        # contains_any is literal text only; device_id also matches the name and model.
+        self.assertIn("device_id", check("D05 有幾張？", {"operation": "count", "contains_any": ["D05"]}))
+        self.assertIsNone(check("冰水主機最近一次回報的原文？", {"operation": "read", "device_id": "冰水主機"}))
+        self.assertIsNone(check("E-01 出現幾次？", {"operation": "count", "contains_any": ["E-01"]}))
+        self.assertIsNone(check("今天 D01 有幾張？", {"operation": "count", "day": "today", "device_id": "AC-75"}))
 
     def test_steps_fail_without_invented_answer(self):
         with self.assertRaises(RuntimeError):

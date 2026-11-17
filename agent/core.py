@@ -101,6 +101,10 @@ class Agent:
             snapshot=SNAPSHOT, schemas=json.dumps(SCHEMAS, ensure_ascii=False))},
             {"role": "user", "content": question}]
         results, used, signatures = {}, [], set()
+        # Missing-filter check: re-checked whenever the model changes the arguments (it once
+        # "fixed" a warning by moving the device into contains_any), at most twice so query,
+        # query, query, finish still fits 4 steps. Resending a warned action unchanged overrides it.
+        warned, warnings_left = set(), 2
         for step in range(self.max_steps):
             if time.monotonic() >= self.deadline:
                 raise TimeoutError("Agent 超時")
@@ -128,6 +132,12 @@ class Agent:
             name, args = action.get("tool"), action.get("arguments")
             signature = json.dumps(action, sort_keys=True, ensure_ascii=False)
             try:
+                if name == "query_tickets" and isinstance(args, dict) and warnings_left and signature not in warned:
+                    warning = self.store.missing_filters(question, args)
+                    if warning:
+                        warned.add(signature)
+                        warnings_left -= 1
+                        raise ValueError(warning)
                 if signature in signatures:
                     raise ValueError("重複查詢；請改參數或 finish 已有結果")
                 signatures.add(signature)

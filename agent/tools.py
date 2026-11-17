@@ -44,6 +44,38 @@ def timestamp(value):
 
 DATE_ONLY = re.compile(r"\d{4}-\d{2}-\d{2}")
 TIME_WORDS = re.compile(r"\d{4}-\d{1,2}|\d{1,2}月|\d{1,2}[日號]|今天|昨天|前天|本週|本周|這週|最近|上週|today", re.I)
+# A date window written in the question. Narrower than TIME_WORDS: 「最近一次」 means the
+# newest ticket, not a window, so a bare 最近 does not count.
+TIME_FILTER = re.compile(r"\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}|\d{1,2}月\d{1,2}[日號]|今天|昨天|前天|today|"
+                         r"最近\s*[\d一二兩三四五六七八九十]+\s*[天日週周]|[本這上][週周]", re.I)
+DATE_ARGS = ("day", "last_days", "since", "until")
+
+
+def question_dates(question):
+    """Date arguments for unambiguous wordings, used only in a suggested action; else None."""
+    snapshot_day = datetime.fromisoformat(SNAPSHOT[:10])
+    relative = {"今天": 0, "today": 0, "昨天": 1, "前天": 2}
+    for word, back in relative.items():
+        if word in question.casefold():
+            return {"day": "today"} if back == 0 else {
+                "day": (snapshot_day - timedelta(days=back)).strftime("%Y-%m-%d")}
+    match = re.search(r"最近\s*(\d+)\s*天", question)
+    if match:
+        return {"last_days": int(match.group(1))}
+    match = (re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})(.{0,4})", question) or
+             re.search(r"()(\d{1,2})/(\d{1,2})(.{0,4})", question))
+    if not match:
+        return None
+    year, month, day, after = match.groups()
+    try:
+        value = datetime(int(year or snapshot_day.year), int(month), int(day)).strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+    if re.search(r"之後|以後|後|起", after):
+        return {"since": value}
+    if re.search(r"之前|以前|前", after):
+        return {"until": value}
+    return {"day": value}
 
 
 def boundary(value, name):
@@ -195,6 +227,52 @@ class Store:
         key = lookup_key(value)
         return next((d["device_id"] for d in self.devices if key in {
             lookup_key(d[k]) for k in ("device_id", "name", "model")}), None)
+
+    def mentioned_devices(self, question):
+        """Device IDs whose public ID/name/model appears in the question (spelling variants allowed)."""
+        # Keep spaces: lookup_key would glue 「D01 2026-10-01」 into 「d0120261001」 and hide D01.
+        text = re.sub(r"[-_]", "", unicodedata.normalize("NFKC", question).casefold().translate(S2T))
+        return [d["device_id"] for d in self.devices
+                if contains_device(text, [lookup_key(d[k]) for k in ("device_id", "name", "model")])]
+
+    def missing_filters(self, question, args):
+        """Explain query_tickets arguments that drop a device or date the question states, else None.
+
+        The 1.7B model copied the date-only prompt example and counted every ticket after a
+        date for 「2026-10-01 之後 D05 有幾張」. The fix is left to the model: it may add the
+        condition, or resend unchanged when the mention is not a filter.
+        """
+        validate(args, SCHEMAS["query_tickets"])
+        problems, suggested = [], dict(args)
+        devices = self.mentioned_devices(question)
+        if devices:
+            # contains_any does not count: given the warning, the model moved 「D05」 into
+            # contains_any, which matches only that literal string (0) instead of ID/name/model (41).
+            chosen = self.resolve_device(args["device_id"]) if args.get("device_id") else None
+            if chosen not in devices:
+                names = "、".join(f"{d['device_id']}（{d['name']}）" for d in self.devices
+                                 if d["device_id"] in devices)
+                problems.append(f"題目提到設備 {names}，但 device_id 沒有填它（device_id 同時比對編號、"
+                                "名稱與型號；contains_any 只比對原文字串，不能代替）")
+                suggested["device_id"] = devices[0]
+                rest = [t for t in args.get("contains_any") or [] if self.resolve_device(t) not in devices]
+                suggested.pop("contains_any", None)
+                if rest:
+                    suggested["contains_any"] = rest
+        if TIME_FILTER.search(question) and all(args.get(k) in (None, "") for k in DATE_ARGS):
+            problems.append("題目有時間條件，但 day／last_days／since／until 都沒填")
+            suggested.update(question_dates(question) or {})
+        if not problems:
+            return None
+        # The constrained decoder (llama.cpp json_schema grammar) emits required keys first, then
+        # optional keys only in schema order: after copying 「operation, since」 the model could
+        # no longer write device_id and fell back to contains_any. Suggest the action in that order.
+        schema = SCHEMAS["query_tickets"]
+        order = schema["required"] + [k for k in schema["properties"] if k not in schema["required"]]
+        suggested = {k: suggested[k] for k in order if k in suggested}
+        action = json.dumps({"tool": "query_tickets", "arguments": suggested}, ensure_ascii=False)
+        return ("；".join(problems) + f"。若是篩選條件，可改送：{action}"
+                "（日期請核對題目）；若題目只是順帶提到、不是篩選條件，可原樣再送一次。")
 
     def misplaced(self, value):
         """Explain a value that clearly belongs to another parameter or tool, else None."""
