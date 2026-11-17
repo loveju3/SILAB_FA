@@ -22,11 +22,23 @@
 git clone https://github.com/loveju3/SILAB_FA.git
 cd SILAB_FA
 
-# 2. 把題目附的 5 個資料檔放進 data/
-#    devices.json、error_codes.json、tickets.jsonl、history.jsonl、dev.jsonl
+# 2. 建立 data/（已被 Git 忽略，clone 後不存在），放入題目附的 5 個資料檔
+mkdir data
+cp <題目附檔資料夾>/{devices.json,error_codes.json,tickets.jsonl,history.jsonl,dev.jsonl} data/
 
 # 3. 安裝（第二部分 Agent 要加 --with-agent）
 python3 install.py --with-agent
+```
+
+`cp` 那行是 bash／zsh 寫法；Windows 直接用檔案總管把 5 個檔案複製進 `data/` 即可。放好後應該是：
+
+```
+data/
+├── devices.json       # 必要，缺少時 install.py 會失敗
+├── error_codes.json   # 必要，缺少時 install.py 會失敗
+├── tickets.jsonl      # 缺少時略過 tickets 預測與 Agent 示範
+├── history.jsonl
+└── dev.jsonl          # 缺少時略過 dev 評分
 ```
 
 最後看到 `安裝結果：PASS` 就完成了。中途失敗時，畫面會顯示失敗的階段與原因；修正後重跑同一個指令即可，已完成的部分會沿用。
@@ -61,7 +73,7 @@ python3 run_demo.py --evals         # 另外跑 Agent 評測（每題冷啟動�
 | 2 GB 版本（同一個模型，加上 2 GiB 上限） | `python3 predict.py data/tickets.jsonl tickets_predictions_2gb.jsonl --mem-limit 2g` |
 | Docker 2 GiB 驗證（需 Docker Desktop） | `bash scripts/docker_2gb_check.sh` |
 | 時間與 2 GiB 量測證據 | `python3 scripts/collect_evidence.py --runs 3 --output evidence/<名稱>` |
-| 指定其他方法 | `--method rules`（另有 `tfidf-*`、`bge-lr`、`bge-svc`，需要[完整模型包](../advanced/cpu-models.md)） |
+| 指定其他方法 | `--method rules`、`tfidf-lr`、`tfidf-svc`、`bge-lr`、`bge-svc`（B／C 模型已在 repo；`bge-*` 另需一次下載公開 encoder，見下節） |
 | 問答 Agent | `python3 ask.py "B1 動力室有哪些設備？" --trace` |
 | 巡檢 | `python3 patrol.py` |
 | Agent 評測 | `python3 evals/run.py --suite synthetic`、`--suite history` |
@@ -77,6 +89,14 @@ python3 run_demo.py --evals         # 另外跑 Agent 評測（每題冷啟動�
 - 內容：微調後的 bge-small-zh-v1.5 encoder、分類頭、tokenizer，以及每個檔案的 SHA-256 清單；不含任何工單資料
 
 無法連到 GitHub 時，手動下載這個 ZIP 放到 repo 根目錄或「下載項目」（`~/Downloads`），`install.py` 會自動找到；放在其他位置用 `python3 install.py --model-zip <路徑>`。
+
+方案 B／C 的四個分類模型直接放在 Git 的 `Solution/models/`（`tfidf-lr`、`tfidf-svc`、`bge-lr`、`bge-svc`，各一個 `.joblib` 與同名 `.json`），就是 [evidence/2026-11-16-linux-vm-bc](../../evidence/2026-11-16-linux-vm-bc/README.md) 量測與 dev 評分用的同一批檔案，不需要重新訓練：
+
+- `tfidf-*`：clone 後即可用，例如 `python3 predict.py data/dev.jsonl dev_tfidf-svc.jsonl --method tfidf-svc`
+- `bge-lr`／`bge-svc`：分類頭已在 repo，但需要凍結的公開 encoder（約 92 MB，不放 Git）。先執行一次 `.venv/bin/python Solution/scripts/download_encoder.py`（Windows：`.venv\Scripts\python.exe`），會從 Hugging Face 下載固定 revision `7999e1d3…` 的 `BAAI/bge-small-zh-v1.5`；載入時會比對 revision 與檔案雜湊
+- 載入時會檢查 scikit-learn 版本（1.7.2，`install.py` 已固定）與 `.joblib` 的 SHA-256；版本不同會明確報錯
+- 這些模型只用 history 訓練，但 TF-IDF 模型的詞表是由 history 原文切出的 2–4 字元片段
+- `.joblib` 是 pickle 格式，只應載入本 repo 這類可信來源的檔案
 
 ## 常見問題
 

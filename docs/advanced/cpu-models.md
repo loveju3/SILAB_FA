@@ -1,6 +1,6 @@
 # 進階開發：CPU 模型訓練與 Docker
 
-> **進階／歷史文件。** 一般安裝請用 [docs/setup](../setup/README.md) 的 `python3 install.py`，不需要照本頁操作。本頁保留先前的手動流程與實測紀錄：文中的 `.venv-windows`、`.venv-macos` 現已統一為 `.venv`；`SILAB_FA_test_models_20261115.zip` 完整模型包只有要跑 `--method tfidf-lr／tfidf-svc／bge-lr／bge-svc` 時才需要，預設的微調模型由 `install.py` 自動下載。
+> **進階／歷史文件。** 一般安裝請用 [docs/setup](../setup/README.md) 的 `python3 install.py`，不需要照本頁操作。本頁保留先前的手動流程與實測紀錄：文中的 `.venv-windows`、`.venv-macos` 現已統一為 `.venv`；`tfidf-lr／tfidf-svc／bge-lr／bge-svc` 的分類模型現已放在 Git 的 `Solution/models/`，不再需要舊的 `SILAB_FA_test_models_20261115.zip`（`bge-*` 仍需下方的 `download_encoder.py`）；預設的微調模型由 `install.py` 自動下載。
 
 一般測試者先依 [Windows](windows.md) 或 [Mac](macos.md) 完成一套環境；下列重新訓練與 2 GB Docker 為開發者進階工作。
 
@@ -17,7 +17,7 @@
 
 訓練來源為 history。模型資產留在本機，推論時不自動訓練或改選其他方法。
 
-完成後預設模型位於 `Solution/models/tfidf-lr.joblib`、`tfidf-svc.joblib`，各自須有同名 `.json` metadata。若改用另一台電腦已訓練的可信模型，將這兩組檔案放到相同路徑即可，不必重新訓練；只放 `.joblib` 不完整。
+完成後預設模型位於 `Solution/models/tfidf-lr.joblib`、`tfidf-svc.joblib`，各自須有同名 `.json` metadata。repo 已附一份（見 [evidence](../../evidence/2026-11-16-linux-vm-bc/README.md)）；重新訓練會覆寫它們，產生不同雜湊的檔案。若改用另一台電腦已訓練的可信模型，將這兩組檔案放到相同路徑即可，不必重新訓練；只放 `.joblib` 不完整。
 
 ## BGE（方案 C）
 

@@ -30,7 +30,7 @@ Solution/
 ├── training/                 B/C 共用 history 分割、分類頭與選型指標
 ├── train.py                  LR／SVC × 名稱保留／遮罩四種實驗與重訓
 ├── train_embedding.py        C 固定 BGE 向量、四候選比較與重訓
-├── models/                   本機模型與 metadata，不加入 Git
+├── models/                   B／C 四個固定模型與 metadata 進 Git；encoder、訓練紀錄留本機
 ├── requirements-ml.txt       B 的固定依賴；A 不需要安裝
 ├── requirements-embedding.txt C 的固定依賴（含 B 的依賴）
 ├── docs/                     白話演算法說明與 Mermaid 流程圖

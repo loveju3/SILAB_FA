@@ -4,4 +4,14 @@ reports/
 predictions/
 experiments/*.json
 experiments/runs/
-models/
+models/*
+# 方案 B／C 的固定分類模型（與 evidence/2026-11-16-linux-vm-bc 量測同一批）進 Git，供直接複驗；
+# encoder、training-runs 與其他候選仍只留本機。
+!models/tfidf-lr.joblib
+!models/tfidf-lr.json
+!models/tfidf-svc.joblib
+!models/tfidf-svc.json
+!models/bge-lr.joblib
+!models/bge-lr.json
+!models/bge-svc.joblib
+!models/bge-svc.json
