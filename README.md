@@ -24,7 +24,7 @@
 ```bash
 git clone https://github.com/loveju3/SILAB_FA.git && cd SILAB_FA
 mkdir data                          # data/ 已被 Git 忽略，clone 後要自己建
-cp <題目附檔資料夾>/{devices.json,error_codes.json,tickets.jsonl,history.jsonl,dev.jsonl} data/
+cp <提供的maintenance-triage-takehome的data資料夾路徑>/{devices.json,error_codes.json,tickets.jsonl,history.jsonl,dev.jsonl} data/
 python3 install.py --with-agent     # 建 .venv、裝 CPU 套件、下載並校驗模型、推論自測；看到 PASS 即完成
 python3 run_demo.py                 # dev 評分、兩份 tickets 預測、ask.py --trace 與 patrol.py 示範
 ```
